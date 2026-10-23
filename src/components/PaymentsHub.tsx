@@ -27,6 +27,8 @@ import {
   bpsToPercent,
 } from '@/lib/fairsplit-math';
 import { PayPalCheckoutModal } from './PayPalCheckoutModal';
+import { BatchPayoutReceiptModal } from './BatchPayoutReceiptModal';
+import { Printer } from 'lucide-react';
 
 
 interface PaymentsHubProps {
@@ -62,6 +64,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
   const [isPayoutProcessing, setIsPayoutProcessing] = useState<boolean>(false);
   const [showRawJsonPayload, setShowRawJsonPayload] = useState<boolean>(false);
   const [lastExecutedBatch, setLastExecutedBatch] = useState<PayoutBatch | null>(null);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
 
   // Derive collaborator pending balances in cents
   const memberBalances: Record<MemberRole, number> = { dev: 0, artist: 0, writer: 0, composer: 0 };
@@ -237,6 +240,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
 
       onNewPayoutBatch(newBatch);
       setLastExecutedBatch(newBatch);
+      setIsReceiptModalOpen(true);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'PayPal Payouts batch failed');
     } finally {
@@ -589,7 +593,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
 
           {/* Success Banner if just executed */}
           {lastExecutedBatch && (
-            <div className="p-3.5 rounded-xl bg-emerald-950/70 border border-emerald-800 text-emerald-200 text-xs space-y-1">
+            <div className="p-3.5 rounded-xl bg-emerald-950/70 border border-emerald-800 text-emerald-200 text-xs space-y-2">
               <div className="flex items-center gap-2 font-bold">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 <span>PayPal Batch {lastExecutedBatch.payoutBatchId} Processed!</span>
@@ -598,6 +602,14 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
                 Successfully disbursed {centsToDollars(lastExecutedBatch.totalCents)} across{' '}
                 {lastExecutedBatch.items.length} collaborators. Idempotent balances cleared.
               </p>
+              <button
+                type="button"
+                onClick={() => setIsReceiptModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>View Official Settlement Receipt (PDF)</span>
+              </button>
             </div>
           )}
 
@@ -623,6 +635,14 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Official PayPal Settlement Receipt Modal */}
+      <BatchPayoutReceiptModal
+        isOpen={isReceiptModalOpen}
+        onClose={() => setIsReceiptModalOpen(false)}
+        batch={lastExecutedBatch}
+        activeEpoch={activeEpoch}
+      />
     </div>
   );
 };
