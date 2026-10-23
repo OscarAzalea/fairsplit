@@ -1,0 +1,148 @@
+'use client';
+
+import React from 'react';
+import { ShieldCheck, Sparkles, RefreshCw, Layers, DollarSign, Wallet } from 'lucide-react';
+import { Epoch } from '@/lib/types';
+import { centsToDollars } from '@/lib/fairsplit-math';
+
+interface HeaderProps {
+  activeEpoch: Epoch;
+  activeTab: 'studio' | 'ledger' | 'balances' | 'payments';
+  setActiveTab: (tab: 'studio' | 'ledger' | 'balances' | 'payments') => void;
+  totalGrossCents: number;
+  totalNetCents: number;
+  totalPaidCents: number;
+  isVerifyingChain: boolean;
+  onVerifyChain: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({
+  activeEpoch,
+  activeTab,
+  setActiveTab,
+  totalGrossCents,
+  totalNetCents,
+  totalPaidCents,
+  isVerifyingChain,
+  onVerifyChain,
+}) => {
+  const pendingCents = totalNetCents - totalPaidCents;
+
+  return (
+    <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-20">
+          {/* Logo & Hackathon Tag */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 shadow-lg shadow-blue-500/20 text-white font-black text-xl tracking-tight">
+              FS
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-bold tracking-tight text-white">FairSplit</span>
+                <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-900/60 text-blue-300 border border-blue-700/50">
+                  PayPal AI Hackathon
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Fintech Rev-Share & Trust Ledger for &ldquo;Project Aurora&rdquo;
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Stats Banner */}
+          <div className="hidden lg:flex items-center gap-6 px-4 py-2 rounded-xl bg-slate-900/90 border border-slate-800 text-xs">
+            <div>
+              <div className="text-slate-400">Total Inflows (Gross)</div>
+              <div className="font-semibold text-slate-200">{centsToDollars(totalGrossCents)}</div>
+            </div>
+            <div className="h-6 w-px bg-slate-800" />
+            <div>
+              <div className="text-slate-400">Net Allocated</div>
+              <div className="font-semibold text-emerald-400">{centsToDollars(totalNetCents)}</div>
+            </div>
+            <div className="h-6 w-px bg-slate-800" />
+            <div>
+              <div className="text-slate-400">Paid Out (PayPal)</div>
+              <div className="font-semibold text-blue-400">{centsToDollars(totalPaidCents)}</div>
+            </div>
+            <div className="h-6 w-px bg-slate-800" />
+            <div>
+              <div className="text-slate-400">Pending Reserve</div>
+              <div className="font-semibold text-amber-400">{centsToDollars(pendingCents)}</div>
+            </div>
+          </div>
+
+          {/* Active Epoch & Verification status */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 text-xs font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Active: {activeEpoch.version}</span>
+            </div>
+
+            <button
+              onClick={onVerifyChain}
+              disabled={isVerifyingChain}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-xs transition"
+              title="Verify cryptographic SHA-256 chain integrity"
+            >
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span className="hidden sm:inline">Verify Chain</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex space-x-1 sm:space-x-4 border-t border-slate-800/80 py-2.5 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('studio')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${
+              activeTab === 'studio'
+                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Agreement Studio</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('ledger')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${
+              activeTab === 'ledger'
+                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>Trust Ledger (SHA-256)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('balances')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${
+              activeTab === 'balances'
+                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+            }`}
+          >
+            <Wallet className="w-4 h-4" />
+            <span>Collaborator Balances</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('payments')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${
+              activeTab === 'payments'
+                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+            }`}
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>Payments Hub (PayPal Sandbox)</span>
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+};
