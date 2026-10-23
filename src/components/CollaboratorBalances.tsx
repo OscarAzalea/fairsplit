@@ -14,6 +14,9 @@ import {
 import { Epoch, Inflow, Member, MemberRole, PayoutBatch } from '@/lib/types';
 import { bpsToPercent, centsToDollars } from '@/lib/fairsplit-math';
 import { ExplainBalanceModal } from './ExplainBalanceModal';
+import { PayoutCertificateModal } from './PayoutCertificateModal';
+import { FileText } from 'lucide-react';
+
 
 interface CollaboratorBalancesProps {
   members: Member[];
@@ -31,6 +34,8 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
   onNavigateToPayouts,
 }) => {
   const [selectedAuditMember, setSelectedAuditMember] = useState<Member | null>(null);
+  const [selectedCertMember, setSelectedCertMember] = useState<Member | null>(null);
+
 
   // Calculate balances per member in deterministic cents
   const memberBalances = members.map((member) => {
@@ -181,14 +186,23 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
               </div>
 
               {/* Actions */}
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 <button
                   type="button"
                   onClick={() => setSelectedAuditMember(member)}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold transition border border-slate-700/60"
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold transition border border-slate-700/60 cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-blue-400" />
                   <span>Explain My Balance (AI)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedCertMember(member)}
+                  className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-emerald-300 text-[11px] font-medium transition border border-slate-800 hover:border-emerald-800/60 cursor-pointer"
+                >
+                  <FileText className="w-3 h-3 text-emerald-400" />
+                  <span>Export Audit Certificate</span>
                 </button>
               </div>
             </div>
@@ -204,6 +218,17 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
         inflows={inflows}
         payoutBatches={payoutBatches}
       />
+
+      {/* Cryptographic Payout Certificate Modal */}
+      <PayoutCertificateModal
+        isOpen={selectedCertMember !== null}
+        onClose={() => setSelectedCertMember(null)}
+        member={selectedCertMember}
+        activeEpoch={activeEpoch}
+        inflows={inflows}
+        payoutBatches={payoutBatches}
+      />
     </div>
+
   );
 };

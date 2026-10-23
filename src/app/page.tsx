@@ -6,7 +6,9 @@ import { AgreementStudio } from '@/components/AgreementStudio';
 import { TrustLedger } from '@/components/TrustLedger';
 import { CollaboratorBalances } from '@/components/CollaboratorBalances';
 import { PaymentsHub } from '@/components/PaymentsHub';
+import { StudioAdvisorDrawer } from '@/components/StudioAdvisorDrawer';
 import { GENESIS_EPOCH, INITIAL_INFLOWS, INITIAL_PAYOUT_BATCHES, MEMBERS } from '@/lib/initial-data';
+
 import { Epoch, Inflow, PayoutBatch } from '@/lib/types';
 import { verifyEpochChain } from '@/lib/crypto';
 import { ShieldCheck, Sparkles, Layers, DollarSign, Wallet } from 'lucide-react';
@@ -17,6 +19,8 @@ export default function FairSplitApp() {
   const [inflows, setInflows] = useState<Inflow[]>(INITIAL_INFLOWS);
   const [payoutBatches, setPayoutBatches] = useState<PayoutBatch[]>(INITIAL_PAYOUT_BATCHES);
   const [activeTab, setActiveTab] = useState<'studio' | 'ledger' | 'balances' | 'payments'>('studio');
+  const [isAdvisorOpen, setIsAdvisorOpen] = useState<boolean>(false);
+
 
   const [isVerifyingChain, setIsVerifyingChain] = useState<boolean>(false);
   const [verifyAlert, setVerifyAlert] = useState<{ show: boolean; msg: string; valid: boolean }>({
@@ -117,7 +121,9 @@ export default function FairSplitApp() {
         totalPaidCents={totalPaidCents}
         isVerifyingChain={isVerifyingChain}
         onVerifyChain={handleVerifyChain}
+        onOpenAdvisor={() => setIsAdvisorOpen(true)}
       />
+
 
       {/* Floating Verification Notification */}
       {verifyAlert.show && (
@@ -182,6 +188,16 @@ export default function FairSplitApp() {
           />
         )}
       </main>
+
+      {/* Gemini AI Studio Advisor Drawer */}
+      <StudioAdvisorDrawer
+        isOpen={isAdvisorOpen}
+        onClose={() => setIsAdvisorOpen(false)}
+        activeEpoch={activeEpoch}
+        pendingReserveCents={totalNetCents - totalPaidCents}
+        inflowsCount={inflows.length}
+      />
+
 
       {/* Global Footer */}
       <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">

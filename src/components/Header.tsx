@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ShieldCheck, Sparkles, RefreshCw, Layers, DollarSign, Wallet } from 'lucide-react';
+import { ShieldCheck, Sparkles, RefreshCw, Layers, DollarSign, Wallet, Bot } from 'lucide-react';
 import { Epoch } from '@/lib/types';
 import { centsToDollars } from '@/lib/fairsplit-math';
 
@@ -14,6 +14,7 @@ interface HeaderProps {
   totalPaidCents: number;
   isVerifyingChain: boolean;
   onVerifyChain: () => void;
+  onOpenAdvisor: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,7 +26,9 @@ export const Header: React.FC<HeaderProps> = ({
   totalPaidCents,
   isVerifyingChain,
   onVerifyChain,
+  onOpenAdvisor,
 }) => {
+
   const pendingCents = totalNetCents - totalPaidCents;
 
   return (
@@ -81,15 +84,25 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             <button
+              onClick={onOpenAdvisor}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold transition shadow-md shadow-cyan-600/20 cursor-pointer"
+              title="Open Gemini AI Studio Advisor"
+            >
+              <Bot className="w-4 h-4" />
+              <span>AI Advisor</span>
+            </button>
+
+            <button
               onClick={onVerifyChain}
               disabled={isVerifyingChain}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-xs transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-xs transition cursor-pointer"
               title="Verify cryptographic SHA-256 chain integrity"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
               <span className="hidden sm:inline">Verify Chain</span>
             </button>
           </div>
+
         </div>
 
         {/* Tab Navigation */}

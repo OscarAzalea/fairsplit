@@ -145,3 +145,13 @@ export interface ChainVerificationResult {
   forensics?: ForensicAttribution;
 }
 
+export interface StudioAdviceResult {
+  topic: string;
+  executiveSummary: string;
+  strategicInsight: string;
+  actionSteps: string[];
+  financialImpact: string;
+  confidenceScore: number;
+}
+
+

@@ -26,6 +26,8 @@ import {
   dollarsToCents,
   bpsToPercent,
 } from '@/lib/fairsplit-math';
+import { PayPalCheckoutModal } from './PayPalCheckoutModal';
+
 
 interface PaymentsHubProps {
   members: Member[];
@@ -50,6 +52,8 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
   const [inflowGrossDollars, setInflowGrossDollars] = useState<number>(2500.0);
   const [isInflowProcessing, setIsInflowProcessing] = useState<boolean>(false);
   const [inflowSuccessOrderId, setInflowSuccessOrderId] = useState<string | null>(null);
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState<boolean>(false);
+
 
   // Outflow / Payouts Batch Console State
   const [selectedMembersForPayout, setSelectedMembersForPayout] = useState<Set<MemberRole>>(
@@ -443,25 +447,31 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
             </div>
           )}
 
-          {/* Action Button */}
+          {/* Action Button: Opens Visual Authentic PayPal Checkout Modal */}
           <button
-            onClick={handleCaptureInflow}
-            disabled={isInflowProcessing || previewGrossCents <= 0}
-            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-600/30 transition disabled:opacity-50"
+            onClick={() => setIsCheckoutModalOpen(true)}
+            disabled={previewGrossCents <= 0}
+            className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-xl bg-[#FFC439] hover:bg-[#F2BA36] active:bg-[#E5AF30] text-black text-xs font-black shadow-lg shadow-[#FFC439]/20 transition cursor-pointer disabled:opacity-50"
           >
-            {isInflowProcessing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Calling PayPal Sandbox & Anchoring to Epoch...</span>
-              </>
-            ) : (
-              <>
-                <CreditCard className="w-4 h-4" />
-                <span>Simulate PayPal Checkout & Capture ({centsToDollars(previewGrossCents)})</span>
-              </>
-            )}
+            <span className="text-[#0079C1] italic text-sm">Pay</span>
+            <span className="text-[#00457C] italic text-sm">Pal</span>
+            <span>Launch Smart Checkout ({centsToDollars(previewGrossCents)})</span>
           </button>
+
+          {/* Render Visual PayPal Checkout Modal */}
+          <PayPalCheckoutModal
+            isOpen={isCheckoutModalOpen}
+            onClose={() => setIsCheckoutModalOpen(false)}
+            activeEpoch={activeEpoch}
+            source={inflowSource}
+            grossDollars={inflowGrossDollars}
+            onSuccess={(newInflow) => {
+              onNewInflow(newInflow);
+              setInflowSuccessOrderId(newInflow.paypalOrderId);
+            }}
+          />
         </div>
+
 
         {/* PANEL 2: OUTFLOWS (PayPal Payouts API Batch Distribution) */}
         <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
