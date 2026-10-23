@@ -84,7 +84,10 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to fetch studio advice');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server responded with ${res.status}`);
+      }
       const data: StudioAdviceResult = await res.json();
       setAdviceResult(data);
     } catch (err: unknown) {

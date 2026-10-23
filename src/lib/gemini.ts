@@ -54,10 +54,11 @@ Respond ONLY with a valid JSON object matching this schema:
 CRITICAL: The sum of dev, artist, writer, and composer in compromiseSplits MUST EXACTLY EQUAL 10000.`;
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(7000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
@@ -263,10 +264,11 @@ ${JSON.stringify(payoutHistory, null, 2)}
 Provide a concise, 2-paragraph professional, reassuring, and completely transparent summary. Emphasize that all numbers are calculated in deterministic cents under cryptographically signed epochs.`;
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(7000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: auditPrompt }] }],
           }),
@@ -339,10 +341,11 @@ Respond ONLY with a valid JSON object matching this schema:
 }`;
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(7000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
