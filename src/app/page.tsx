@@ -9,7 +9,7 @@ import { PaymentsHub } from '@/components/PaymentsHub';
 import { StudioAdvisorDrawer } from '@/components/StudioAdvisorDrawer';
 import { GENESIS_EPOCH, INITIAL_INFLOWS, INITIAL_PAYOUT_BATCHES, MEMBERS } from '@/lib/initial-data';
 
-import { Epoch, Inflow, PayoutBatch } from '@/lib/types';
+import { Epoch, Inflow, PayoutBatch, PayoutRecommendation } from '@/lib/types';
 import { verifyEpochChain } from '@/lib/crypto';
 import { ShieldCheck, Sparkles, Layers, DollarSign, Wallet } from 'lucide-react';
 
@@ -31,6 +31,33 @@ export default function FairSplitApp() {
 
   const [isTampered, setIsTampered] = useState<boolean>(false);
   const [backupEpochs, setBackupEpochs] = useState<Epoch[] | null>(null);
+
+  // AI Payout Recommendations Queue (Peer Liquidity Mediation)
+  const [payoutRecommendations, setPayoutRecommendations] = useState<PayoutRecommendation[]>([
+    {
+      id: 'REC-AURORA-01',
+      createdAt: new Date().toISOString(),
+      requesterName: 'Anonymous Collaborator',
+      isAnonymous: true,
+      reasonOrNeed: 'Upcoming studio milestone & personal living liquidity review',
+      recommendedDate: 'Friday, Nov 1, 2026',
+      recommendedAmountCents: 268158,
+      feeOptimizationNote: 'Recommends scheduling the batch release on Friday, Nov 1 to clear pending reserves while keeping relative PayPal fee drag under 1.1%.',
+      status: 'PENDING_REVIEW',
+    },
+  ]);
+
+  const handlePushRecommendation = (rec: PayoutRecommendation) => {
+    setPayoutRecommendations((prev) => [rec, ...prev.filter((r) => r.id !== rec.id)]);
+    setActiveTab('payments');
+    setIsAdvisorOpen(false);
+  };
+
+  const handleDismissRecommendation = (id: string) => {
+    setPayoutRecommendations((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, status: 'DISMISSED' as const } : r))
+    );
+  };
 
   // Compute Studio Financial Totals
   const totalGrossCents = inflows.reduce((sum, inf) => sum + inf.grossCents, 0);
@@ -187,6 +214,9 @@ export default function FairSplitApp() {
             payoutBatches={payoutBatches}
             onNewInflow={handleNewInflow}
             onNewPayoutBatch={handleNewPayoutBatch}
+            payoutRecommendations={payoutRecommendations}
+            onDismissRecommendation={handleDismissRecommendation}
+            onPreloadBatch={() => setActiveTab('payments')}
           />
         )}
       </main>
@@ -198,6 +228,7 @@ export default function FairSplitApp() {
         activeEpoch={activeEpoch}
         pendingReserveCents={totalNetCents - totalPaidCents}
         inflowsCount={inflows.length}
+        onPushRecommendation={handlePushRecommendation}
       />
 
 

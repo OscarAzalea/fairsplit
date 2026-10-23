@@ -1,4 +1,4 @@
-import { BalanceAuditResult, Epoch, Inflow, Member, MemberRole, NegotiationResult, PayoutBatch, StudioAdviceResult } from './types';
+import { BalanceAuditResult, Epoch, Inflow, Member, MemberRole, NegotiationResult, PayoutBatch, StudioAdviceResult, PayoutRecommendation } from './types';
 import { bpsToPercent, centsToDollars, TOTAL_BPS } from './fairsplit-math';
 
 interface NegotiationInput {
@@ -420,6 +420,102 @@ function generateHeuristicAdvisor(
     ],
     financialImpact: `Incentivizes dynamic soundtrack production while preserving long-term developer commitment for updates.`,
     confidenceScore: 90,
+  };
+}
+
+/**
+ * Autonomous Gemini Payout Scheduler & Liquidity Mediator.
+ * Formulates fee-optimized payout dates for collaborators and prepares
+ * a formal studio recommendation memo for the team lead.
+ */
+export async function runPayoutSchedulerAdvice(
+  requesterName: string,
+  isAnonymous: boolean,
+  reasonOrNeed: string,
+  pendingCents: number,
+  activeEpoch: Epoch
+): Promise<PayoutRecommendation> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  const id = `REC-PAYOUT-${Date.now().toString().slice(-6)}`;
+  const now = new Date().toISOString();
+
+  // Baseline recommended date: 7 days from now formatted
+  const targetDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const formattedDate = targetDate.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  if (apiKey) {
+    try {
+      const prompt = `You are the FairSplit AI Financial Controller & Liquidity Mediator for "Project Aurora".
+A team collaborator (${isAnonymous ? 'requesting Anonymously' : requesterName}) has requested advice on when the studio should schedule its next PayPal batch payout.
+Context:
+- Current Unclaimed Pending Balance: ${centsToDollars(pendingCents)}
+- Active Contract Epoch: ${activeEpoch.version}
+- Collaborator stated need: "${reasonOrNeed}"
+- PayPal commercial fee: 2.99% + $0.49 per inflow; $0.25 per payout item.
+
+Provide an optimal, highly intelligent payout recommendation date (within the next 7-14 days) that balances member liquidity with studio fee minimization.
+Respond ONLY with a valid JSON object matching this schema:
+{
+  "recommendedDate": "<e.g. Friday, Nov 1, 2026>",
+  "recommendedAmountCents": <integer cents to disburse, up to ${pendingCents || 100000}>,
+  "feeOptimizationNote": "<1-2 sentences explaining why this timing balances liquidity with minimizing PayPal transaction drag>"
+}`;
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(7000),
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.3,
+            },
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          const parsed = JSON.parse(text);
+          return {
+            id,
+            createdAt: now,
+            requesterName: isAnonymous ? 'Anonymous Collaborator' : requesterName,
+            isAnonymous,
+            reasonOrNeed: reasonOrNeed || 'Routine liquidity & milestone review',
+            recommendedDate: parsed.recommendedDate || formattedDate,
+            recommendedAmountCents: Number(parsed.recommendedAmountCents) || pendingCents || 100000,
+            feeOptimizationNote: parsed.feeOptimizationNote || 'Optimizes batch timing to minimize fixed transaction overhead.',
+            status: 'PENDING_REVIEW',
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Gemini Payout Scheduler API call fallback:', e);
+    }
+  }
+
+  // Heuristic Fallback
+  return {
+    id,
+    createdAt: now,
+    requesterName: isAnonymous ? 'Anonymous Collaborator' : requesterName,
+    isAnonymous,
+    reasonOrNeed: reasonOrNeed || 'Routine liquidity & milestone review',
+    recommendedDate: formattedDate,
+    recommendedAmountCents: pendingCents > 0 ? pendingCents : 125000,
+    feeOptimizationNote: `Recommends a batch release of ${centsToDollars(pendingCents || 125000)} on ${formattedDate} to clear pending obligations while keeping relative PayPal fee drag under 1.2%.`,
+    status: 'PENDING_REVIEW',
   };
 }
 

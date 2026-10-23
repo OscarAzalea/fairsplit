@@ -154,4 +154,18 @@ export interface StudioAdviceResult {
   confidenceScore: number;
 }
 
+export interface PayoutRecommendation {
+  id: string;
+  createdAt: string;
+  requesterRole?: MemberRole;
+  requesterName: string;
+  isAnonymous: boolean;
+  reasonOrNeed: string;
+  recommendedDate: string;
+  recommendedAmountCents: number;
+  feeOptimizationNote: string;
+  status: 'PENDING_REVIEW' | 'PRE_AUTHORIZED' | 'DISMISSED';
+}
+
+
 

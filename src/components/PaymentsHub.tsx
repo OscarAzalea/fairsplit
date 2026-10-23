@@ -17,8 +17,10 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Bot,
+  X,
 } from 'lucide-react';
-import { Epoch, Inflow, Member, MemberRole, PayoutBatch, PayoutItem, PayoutStatus } from '@/lib/types';
+import { Epoch, Inflow, Member, MemberRole, PayoutBatch, PayoutItem, PayoutStatus, PayoutRecommendation } from '@/lib/types';
 import {
   allocateCentsFairly,
   calculatePayPalFeeCents,
@@ -38,6 +40,9 @@ interface PaymentsHubProps {
   payoutBatches: PayoutBatch[];
   onNewInflow: (inflow: Inflow) => void;
   onNewPayoutBatch: (batch: PayoutBatch) => void;
+  payoutRecommendations?: PayoutRecommendation[];
+  onDismissRecommendation?: (id: string) => void;
+  onPreloadBatch?: (rec: PayoutRecommendation) => void;
 }
 
 export const PaymentsHub: React.FC<PaymentsHubProps> = ({
@@ -47,6 +52,9 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
   payoutBatches,
   onNewInflow,
   onNewPayoutBatch,
+  payoutRecommendations = [],
+  onDismissRecommendation,
+  onPreloadBatch,
 }) => {
   // Inflow Simulator State
   const [selectedPreset, setSelectedPreset] = useState<'steam' | 'bandcamp' | 'patreon' | 'custom'>('steam');
@@ -275,6 +283,61 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
           <span>Active Epoch: {activeEpoch.version}</span>
         </div>
       </div>
+
+      {/* AI Payout Advisory Banner from Team Members */}
+      {payoutRecommendations.filter((r) => r.status === 'PENDING_REVIEW').map((rec) => (
+        <div
+          key={rec.id}
+          className="p-5 rounded-2xl bg-gradient-to-r from-blue-950 via-indigo-950 to-slate-950 border border-blue-700/80 shadow-xl shadow-blue-950/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in slide-in-from-top-3 duration-300"
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shrink-0 shadow-md shadow-cyan-600/20">
+              <Bot className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-bold text-white">
+                  AI Payout Advisory: {rec.requesterName}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">
+                  Target Window: {rec.recommendedDate}
+                </span>
+                {rec.isAnonymous && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-950 text-amber-300 border border-amber-800">
+                    Anonymous Mode (Identity Protected)
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
+                {rec.feeOptimizationNote}
+              </p>
+              <div className="text-[11px] text-slate-400 font-mono">
+                Stated Member Context: &ldquo;{rec.reasonOrNeed}&rdquo;
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+            <button
+              onClick={() => onPreloadBatch && onPreloadBatch(rec)}
+              className="flex-1 md:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold shadow-md shadow-blue-900/30 transition flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Review & Pre-Load Batch ({centsToDollars(rec.recommendedAmountCents)})</span>
+            </button>
+
+            {onDismissRecommendation && (
+              <button
+                onClick={() => onDismissRecommendation(rec.id)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                title="Dismiss advisory"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
 
       {/* Two Column Grid: Inflows (Orders API) & Outflows (Payouts API) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
