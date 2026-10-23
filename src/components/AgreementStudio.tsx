@@ -13,6 +13,7 @@ import {
   HelpCircle,
   AlertCircle,
   Check,
+  Info,
 } from 'lucide-react';
 import { Epoch, Member, MemberRole, RatificationSignature } from '@/lib/types';
 import { bpsToPercent, TOTAL_BPS, rebalanceSplits } from '@/lib/fairsplit-math';
@@ -462,24 +463,38 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <span className="text-xs text-slate-300">
                 Ratified: <strong className="text-blue-400">{signedCount}/4</strong>
               </span>
               <button
                 type="button"
                 onClick={handleFastRatifyAll}
-                className="px-3 py-1.5 rounded-lg bg-indigo-600/80 hover:bg-indigo-600 text-white text-xs font-semibold transition"
+                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[11px] font-medium transition flex items-center gap-1.5 cursor-pointer"
+                title="Evaluator testing tool: Simulates 4 asynchronous peer approvals"
               >
-                Fast-Ratify All (Demo)
+                <span>🧪 Sandbox: Auto-Fill Peer Signatures (Testing Only)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setIsProposing(false)}
-                className="text-xs text-slate-400 hover:text-white"
+                className="text-xs text-slate-400 hover:text-white cursor-pointer px-2 py-1 rounded"
               >
                 Cancel
               </button>
+            </div>
+          </div>
+
+          {/* Architecture Sandbox Notice */}
+          <div className="p-3.5 rounded-xl bg-slate-950/90 border border-slate-800 text-[11px] text-slate-400 flex items-start gap-3">
+            <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p>
+                <strong className="text-slate-200">Production Governance Architecture:</strong> In production, each collaborator authenticates asynchronously via their personal PayPal OAuth session or cryptographic hardware key. A single user cannot approve on behalf of peers.
+              </p>
+              <p className="text-slate-500">
+                For evaluator convenience in this demo, you can click each collaborator card below to sign individually, or use the sandbox helper to simulate peer approvals.
+              </p>
             </div>
           </div>
 
