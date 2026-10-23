@@ -28,8 +28,9 @@ interface TrustLedgerProps {
   onTamperEpoch?: (mode: 'dev_equity' | 'random_corruption') => void;
   onRestoreEpochs?: () => void;
   isTampered?: boolean;
+  onVerifyChain?: () => void;
+  isVerifyingChain?: boolean;
 }
-
 
 export const TrustLedger: React.FC<TrustLedgerProps> = ({
   epochs,
@@ -37,6 +38,8 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
   onTamperEpoch,
   onRestoreEpochs,
   isTampered,
+  onVerifyChain,
+  isVerifyingChain,
 }) => {
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
 
@@ -72,6 +75,19 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
 
         {/* Verification Badge & Sandbox Test Tools */}
         <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+          {onVerifyChain && (
+            <button
+              type="button"
+              onClick={onVerifyChain}
+              disabled={isVerifyingChain}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition shadow-md shadow-emerald-900/30 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              title="Runs on-demand SHA-256 cryptographic hash verification across all epochs"
+            >
+              <ShieldCheck className="w-4 h-4 text-white" />
+              <span>{isVerifyingChain ? 'Verifying Hashes...' : 'Verify Ledger Cryptography'}</span>
+            </button>
+          )}
+
           <div
             className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 text-xs font-semibold ${
               verification.isValid

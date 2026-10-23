@@ -164,6 +164,8 @@ export default function FairSplitApp() {
             onTamperEpoch={handleTamperEpoch}
             onRestoreEpochs={handleRestoreEpochs}
             isTampered={isTampered}
+            onVerifyChain={handleVerifyChain}
+            isVerifyingChain={isVerifyingChain}
           />
         )}
 
