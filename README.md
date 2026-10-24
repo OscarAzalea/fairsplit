@@ -46,6 +46,17 @@ npm run build
 npm run start
 ```
 
+### Deploy to Cloudflare Workers
+
+The repository includes the OpenNext adapter and Wrangler configuration for Cloudflare Workers.
+
+```bash
+npm run build:worker
+npm run deploy:worker
+```
+
+In the Cloudflare dashboard, open **Workers & Pages → fairsplit → Settings → Variables and Secrets**. Add `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, and `GEMINI_API_KEY` as **Secret** values, then deploy the changes. The first two enable PayPal Sandbox checkout; the third enables Gemini. Without them, the deployed app clearly identifies its checkout simulator and heuristic AI fallback. Keep these values out of Git and `wrangler.json`.
+
 ---
 
 ## 🧪 Hackathon Judging & Interactive Walkthrough
@@ -81,6 +92,8 @@ Read the full technical specification at [`FAIRSPLIT_SPEC.md`](./FAIRSPLIT_SPEC.
 Use [`HACKATHON_DEMO.md`](./HACKATHON_DEMO.md) for a short judge walkthrough and recording checklist. The app's demo data is held in memory; use **Reset demo** in the status bar to restore the seeded example.
 
 Hosted demo: [fairsplit-ai.netlify.app](https://fairsplit-ai.netlify.app). The repo is published under [MIT](./LICENSE). The hackathon submission also needs a public YouTube demo under three minutes; this repository does not contain that recording.
+
+Cloudflare deployment: [fairsplit.horusosiris404-210.workers.dev](https://fairsplit.horusosiris404-210.workers.dev). Configure its secrets above before using it as the PayPal Sandbox hackathon demo. The Netlify deployment remains available during the migration.
 
 Before claiming the workflow fits real teams, run a few sessions using [`USER_TEST_GUIDE.md`](./USER_TEST_GUIDE.md) and record actual participant feedback.
 
