@@ -76,6 +76,33 @@ export default function FairSplitApp() {
     });
   });
 
+  // Recalculate the unpaid pool under a signed epoch while keeping the source
+  // inflows and completed payout records intact.
+  const reallocatePendingReservesForEpoch = (epoch: Epoch) => {
+    const previousPendingCents = calculateMemberBalances(inflows, payoutBatches, reserveReallocations);
+    const totalUnclaimedCents = MEMBER_ROLES.reduce(
+      (sum, role) => sum + previousPendingCents[role],
+      0
+    );
+
+    if (totalUnclaimedCents <= 0) return;
+
+    const reallocation: ReserveReallocation = {
+      id: `RESERVE-${epoch.epochId}-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      epochId: epoch.epochId,
+      epochHash: epoch.hash,
+      previousPendingCents,
+      allocations: allocateCentsFairly(totalUnclaimedCents, epoch.splits),
+      includedInflowIds: inflows.map((inflow) => inflow.id),
+      includedPayoutItemIds: payoutBatches.flatMap((batch) =>
+        batch.items.filter((item) => item.status === 'SUCCESS').map((item) => item.senderItemId)
+      ),
+    };
+
+    setReserveReallocations((previous) => [...previous, reallocation]);
+  };
+
   // Ratify new epoch
   const handleNewEpochRatified = (newEpoch: Epoch) => {
     // Supersede previously active epoch
@@ -86,6 +113,7 @@ export default function FairSplitApp() {
 
     setEpochs(nextEpochs);
     setActiveEpoch(newEpoch);
+    reallocatePendingReservesForEpoch(newEpoch);
   };
 
   // Capture new inflow
@@ -134,30 +162,9 @@ export default function FairSplitApp() {
     setReserveReallocations((prev) => prev.slice(0, lastValidReallocationIndex + 1));
   };
 
-  // Snapshot the unpaid pool under the active epoch without rewriting historical inflows or payouts.
+  // Fallback for pending reserves that predate this session's ratification.
   const handleApplyActiveEpochToReserves = () => {
-    const previousPendingCents = calculateMemberBalances(inflows, payoutBatches, reserveReallocations);
-    const totalUnclaimedCents = MEMBER_ROLES.reduce(
-      (sum, role) => sum + previousPendingCents[role],
-      0
-    );
-
-    if (totalUnclaimedCents <= 0) return;
-
-    const reallocation: ReserveReallocation = {
-      id: `RESERVE-${activeEpoch.epochId}-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      epochId: activeEpoch.epochId,
-      epochHash: activeEpoch.hash,
-      previousPendingCents,
-      allocations: allocateCentsFairly(totalUnclaimedCents, activeEpoch.splits),
-      includedInflowIds: inflows.map((inflow) => inflow.id),
-      includedPayoutItemIds: payoutBatches.flatMap((batch) =>
-        batch.items.filter((item) => item.status === 'SUCCESS').map((item) => item.senderItemId)
-      ),
-    };
-
-    setReserveReallocations((prev) => [...prev, reallocation]);
+    reallocatePendingReservesForEpoch(activeEpoch);
   };
 
   // Add new payout batch

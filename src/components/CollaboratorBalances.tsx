@@ -22,7 +22,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { Epoch, Inflow, Member, MemberRole, PayoutBatch, ReserveReallocation } from '@/lib/types';
-import { allocateCentsFairly, bpsToPercent, centsToDollars } from '@/lib/fairsplit-math';
+import { allocateCentsFairly, bpsToPercent, calculatePayPalFeeCents, centsToDollars } from '@/lib/fairsplit-math';
 import { calculateMemberBalances, calculateSettledPayouts, isSimulatedInflow } from '@/lib/balances';
 import { ExplainBalanceModal } from './ExplainBalanceModal';
 import { PayoutCertificateModal } from './PayoutCertificateModal';
@@ -89,6 +89,9 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
 
   const grandTotalPending = memberBalances.reduce((sum, m) => sum + m.pendingBalanceCents, 0);
   const reallocationPreview = allocateCentsFairly(Math.max(0, grandTotalPending), activeEpoch.splits);
+  const oneThousandGrossCents = 100000;
+  const oneThousandNetCents = oneThousandGrossCents - calculatePayPalFeeCents(oneThousandGrossCents);
+  const oneThousandNetPreview = allocateCentsFairly(oneThousandNetCents, activeEpoch.splits);
   const hasUnappliedOldInflows = inflows.some((inflow) => {
     const wasIncludedInLatestReallocation = latestReallocation?.includedInflowIds.includes(inflow.id) ?? false;
     return inflow.epochHash !== activeEpoch.hash &&
@@ -172,7 +175,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
               </div>
             </div>
             <p className="text-[11px] text-slate-400">
-              Existing inflows keep their original split. Each demo click adds another $1,000 gross test inflow; use Apply to redistribute only the unpaid pool.
+              Ratifying a new split recalculates the unpaid pool under those percentages. Historical inflows and completed payouts remain in the ledger.
             </p>
           </div>
         </div>
@@ -286,7 +289,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
                   </div>
 
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-950 text-blue-300 border border-blue-800">
-                    {bpsToPercent(activeBps)} new inflow rate
+                    {bpsToPercent(activeBps)} active share
                   </span>
                 </div>
 
@@ -305,9 +308,9 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
 
                 {/* Next Inflow Projection */}
                 <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">Active Rate ({activeEpoch.version}):</span>
+                  <span className="text-slate-400">Per $1k gross after fee:</span>
                   <span className="font-mono font-bold text-cyan-300">
-                    {bpsToPercent(activeBps)} (+{centsToDollars(Math.round(100000 * (activeBps / 10000)))} / $1k)
+                    {bpsToPercent(activeBps)} (+{centsToDollars(oneThousandNetPreview.find((allocation) => allocation.memberId === member.id)?.cents ?? 0)})
                   </span>
                 </div>
 

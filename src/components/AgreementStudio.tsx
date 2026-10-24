@@ -392,7 +392,7 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
             <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
             <span>
               <strong>Ratification Complete!</strong> Epoch {activeEpoch.version} has been securely
-              anchored to the Trust Ledger with 4/4 digital signatures.
+              anchored to the Trust Ledger with 4/4 digital signatures. Any unpaid reserve now follows the new split.
             </span>
           </div>
           <button
