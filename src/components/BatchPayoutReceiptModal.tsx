@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, CheckCircle2, Printer, Download, ShieldCheck, ExternalLink, QrCode } from 'lucide-react';
+import { X, CheckCircle2, Printer, Download, ShieldCheck, QrCode } from 'lucide-react';
 import { Epoch, PayoutBatch } from '@/lib/types';
 import { centsToDollars } from '@/lib/fairsplit-math';
 
@@ -28,7 +28,7 @@ export const BatchPayoutReceiptModal: React.FC<BatchPayoutReceiptModalProps> = (
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(batch, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `fairsplit-receipt-${batch.payoutBatchId || batch.senderBatchId}.json`);
+    downloadAnchor.setAttribute('download', `fairsplit-simulation-${batch.payoutBatchId || batch.senderBatchId}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -43,6 +43,7 @@ export const BatchPayoutReceiptModal: React.FC<BatchPayoutReceiptModalProps> = (
     minute: '2-digit',
     second: '2-digit',
     timeZoneName: 'short',
+    timeZone: 'UTC',
   });
 
   return (
@@ -58,14 +59,14 @@ export const BatchPayoutReceiptModal: React.FC<BatchPayoutReceiptModalProps> = (
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-lg font-black text-white tracking-tight print:text-black">
-                  PayPal Payout Settlement Receipt
+                  Payout Simulation Report
                 </span>
                 <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 print:border-emerald-600 print:text-emerald-800">
-                  SETTLED
+                  SIMULATED
                 </span>
               </div>
               <p className="text-xs text-slate-400 print:text-slate-600">
-                Official Multi-Party Disbursement Voucher • FairSplit Engine
+                Demo ledger record • No PayPal payout or money transfer occurred
               </p>
             </div>
           </div>
@@ -84,7 +85,7 @@ export const BatchPayoutReceiptModal: React.FC<BatchPayoutReceiptModalProps> = (
           {/* Key Transaction Metadata Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-950 border border-slate-800 print:bg-slate-50 print:border-slate-300">
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">Payout Batch ID</span>
+              <span className="text-[10px] uppercase font-bold text-slate-500 block">Demo Batch ID</span>
               <span className="text-xs font-mono font-bold text-slate-200 print:text-black truncate block" title={batch.payoutBatchId}>
                 {batch.payoutBatchId || batch.senderBatchId}
               </span>
@@ -96,7 +97,7 @@ export const BatchPayoutReceiptModal: React.FC<BatchPayoutReceiptModalProps> = (
               </span>
             </div>
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Disbursed</span>
+              <span className="text-[10px] uppercase font-bold text-slate-500 block">Simulated Deduction</span>
               <span className="text-sm font-black text-emerald-400 print:text-emerald-700 block">
                 {centsToDollars(batch.totalCents)}
               </span>
@@ -113,10 +114,10 @@ export const BatchPayoutReceiptModal: React.FC<BatchPayoutReceiptModalProps> = (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 print:text-slate-700">
-                Itemized Collaborator Disbursements ({batch.items.length})
+                Simulated Collaborator Items ({batch.items.length})
               </h4>
               <span className="text-[10px] text-slate-500 font-mono">
-                PayPal Rails: INSTANT
+                PayPal payout request: not sent
               </span>
             </div>
 
@@ -148,7 +149,7 @@ export const BatchPayoutReceiptModal: React.FC<BatchPayoutReceiptModalProps> = (
                     </div>
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 print:text-emerald-700">
                       <CheckCircle2 className="w-3 h-3" />
-                      <span>{item.status}</span>
+                      <span>{item.status === 'SUCCESS' ? 'SIMULATED' : 'SIMULATED FAILURE'}</span>
                     </span>
                   </div>
                 </div>
@@ -161,10 +162,10 @@ export const BatchPayoutReceiptModal: React.FC<BatchPayoutReceiptModalProps> = (
             <div className="space-y-1">
               <div className="flex items-center gap-1.5 text-xs font-bold text-slate-300 print:text-black">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Cryptographic Proof of Settlement</span>
+                <span>Agreement Reference</span>
               </div>
               <p className="text-[10px] text-slate-400 print:text-slate-600">
-                This transaction receipt is mathematically bound to SHA-256 Epoch Hash:
+                Split used for this demo calculation, identified by its epoch hash:
               </p>
               <div className="font-mono text-[10px] text-cyan-400 print:text-cyan-800 truncate max-w-sm">
                 {activeEpoch.hash}
@@ -175,7 +176,7 @@ export const BatchPayoutReceiptModal: React.FC<BatchPayoutReceiptModalProps> = (
               <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-400 print:bg-white print:border-black">
                 <QrCode className="w-8 h-8 text-slate-300 print:text-black" />
               </div>
-              <span className="text-[9px] text-slate-500 font-mono block mt-1">VERIFIED</span>
+              <span className="text-[9px] text-slate-500 font-mono block mt-1">DEMO</span>
             </div>
           </div>
 
@@ -185,7 +186,7 @@ export const BatchPayoutReceiptModal: React.FC<BatchPayoutReceiptModalProps> = (
         <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 print:hidden">
           <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
             <span>Funding Source:</span>
-            <span className="text-slate-200 font-semibold">PayPal Developer Sandbox Balance</span>
+            <span className="text-slate-200 font-semibold">Demo ledger only</span>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">

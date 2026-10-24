@@ -6,17 +6,10 @@ import {
   ShieldCheck,
   ShieldAlert,
   Link as LinkIcon,
-  CheckCircle2,
-  AlertTriangle,
-  RefreshCw,
   Copy,
   Check,
   Clock,
-  ArrowRight,
-  ExternalLink,
-  UserX,
   SearchCheck,
-  HelpCircle,
 } from 'lucide-react';
 import { Epoch, Inflow } from '@/lib/types';
 import { bpsToPercent, centsToDollars } from '@/lib/fairsplit-math';
@@ -61,15 +54,15 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
               Trust Ledger Protocol
             </span>
             <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-800 text-slate-300 border border-slate-700">
-              SHA-256 Merkle Chained
+              SHA-256 linked demo records
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            Append-Only Epochs & Immutable Inflow Links
+            Epoch Integrity & Inflow Links
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
-            Agreements are sealed as immutable cryptographic epochs. Every customer dollar captured
-            through PayPal is permanently stamped with the active epoch hash.
+            This browser session links agreement versions by SHA-256 hash. Each recorded inflow
+            stores the agreement active at capture; the demo data resets when the page reloads.
           </p>
         </div>
 
@@ -81,10 +74,10 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
               onClick={onVerifyChain}
               disabled={isVerifyingChain}
               className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition shadow-md shadow-emerald-900/30 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-              title="Runs on-demand SHA-256 cryptographic hash verification across all epochs"
+              title="Recompute each epoch hash and check links in the current demo session"
             >
               <ShieldCheck className="w-4 h-4 text-white" />
-              <span>{isVerifyingChain ? 'Verifying Hashes...' : 'Verify Ledger Cryptography'}</span>
+              <span>{isVerifyingChain ? 'Checking Hashes...' : 'Check Epoch Hashes'}</span>
             </button>
           )}
 
@@ -98,7 +91,7 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
             {verification.isValid ? (
               <>
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Chain Authenticated (100% Valid)</span>
+                <span>Epoch Hashes Match</span>
               </>
             ) : (
               <>
@@ -124,9 +117,9 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
                     type="button"
                     onClick={() => onTamperEpoch('dev_equity')}
                     className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-red-950 hover:text-red-300 border border-slate-700 text-slate-300 text-xs font-medium transition"
-                    title="Simulates Dev altering their equity share (+100 BPS)"
+                    title="Change the demo split to show a hash mismatch; the hash cannot identify the editor"
                   >
-                    Simulate Dev Split Theft (Attributable)
+                    Simulate Split Tamper
                   </button>
                   <button
                     type="button"
@@ -143,71 +136,37 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
         </div>
       </div>
 
-      {/* Forensic Tamper Attribution Panel */}
+      {/* Hash mismatch explanation */}
       {!verification.isValid && verification.forensics && (
-        <div
-          className={`p-5 rounded-2xl border transition-all animate-in slide-in-from-top-3 duration-300 ${
-            verification.forensics.confidence === 'HIGH'
-              ? 'bg-red-950/80 border-red-700 shadow-xl shadow-red-950/50'
-              : 'bg-amber-950/70 border-amber-700'
-          }`}
-        >
+        <div className="p-5 rounded-2xl border bg-amber-950/70 border-amber-700 transition-all animate-in slide-in-from-top-3 duration-300">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-white/10 pb-4">
             <div className="flex items-center gap-2.5">
-              {verification.forensics.confidence === 'HIGH' ? (
-                <div className="w-9 h-9 rounded-xl bg-red-900 border border-red-500 flex items-center justify-center text-red-200">
-                  <UserX className="w-5 h-5" />
-                </div>
-              ) : (
-                <div className="w-9 h-9 rounded-xl bg-amber-900 border border-amber-500 flex items-center justify-center text-amber-200">
-                  <SearchCheck className="w-5 h-5" />
-                </div>
-              )}
+              <div className="w-9 h-9 rounded-xl bg-amber-900 border border-amber-500 flex items-center justify-center text-amber-200">
+                <SearchCheck className="w-5 h-5" />
+              </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-white">
-                    {verification.forensics.confidence === 'HIGH'
-                      ? 'Cryptographic Hash Mismatch & Beneficiary Anomaly'
-                      : 'Cryptographic Hash Mismatch: Inconclusive Beneficiary'}
+                    Hash Mismatch: Actor Unknown
                   </h3>
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      verification.forensics.confidence === 'HIGH'
-                        ? 'bg-red-900 text-red-200 border border-red-600'
-                        : 'bg-amber-900 text-amber-200 border border-amber-600'
-                    }`}
-                  >
-                    Confidence: {verification.forensics.confidence}
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-900 text-amber-200 border border-amber-600">
+                    Attribution: Inconclusive
                   </span>
                 </div>
                 <p className="text-xs text-slate-300/90 mt-0.5">
-                  SHA-256 mismatch mathematically proves payload tampering. Anomaly analysis flags the recipient of surplus equity.
+                  A hash mismatch detects changed data. It cannot identify who changed it.
                 </p>
               </div>
             </div>
 
-            {verification.forensics.confidence === 'HIGH' && (
-              <span className="px-2.5 py-1 rounded-lg bg-red-900/60 border border-red-600/80 text-red-200 text-xs font-mono font-bold animate-pulse">
-                AUTOMATIC PAYOUT FREEZE
-              </span>
-            )}
           </div>
 
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             <div className="p-3.5 rounded-xl bg-slate-950/60 border border-white/10 space-y-1.5">
               <span className="text-[10px] uppercase font-bold text-slate-400">
-                Primary Beneficiary (Financial Anomaly Heuristic)
+                Actor Attribution
               </span>
-              {verification.forensics.suspectName ? (
-                <div className="flex items-center gap-2 text-red-300 font-bold text-sm">
-                  <span>🚨</span>
-                  <span>{verification.forensics.suspectName}</span>
-                </div>
-              ) : (
-                <div className="text-amber-300 italic font-medium">
-                  None Identified (Attribution Withheld to Prevent False Accusations)
-                </div>
-              )}
+              <div className="text-amber-300 italic font-medium">Unknown from hash evidence</div>
               <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
                 {verification.forensics.verdict}
               </p>
@@ -215,7 +174,7 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
 
             <div className="p-3.5 rounded-xl bg-slate-950/60 border border-white/10 space-y-1.5">
               <span className="text-[10px] uppercase font-bold text-slate-400">
-                Cryptographic Evidence & Vector
+                Hash Check Details
               </span>
               <p className="text-xs text-slate-200 leading-relaxed font-mono text-[11px]">
                 {verification.forensics.evidence}
@@ -237,10 +196,7 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
         </div>
 
         <div className="relative pl-6 sm:pl-8 space-y-6 before:content-[''] before:absolute before:left-3 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-800">
-          {epochs.map((epoch, index) => {
-            const isGenesis = index === 0;
-            const isLatest = index === epochs.length - 1;
-
+          {epochs.map((epoch) => {
             return (
               <div
                 key={epoch.epochId}
@@ -338,7 +294,7 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
                     </span>
                   ))}
                   <span className="ml-auto text-slate-400 text-[11px]">
-                    Signatures: {epoch.signatures.length}/4
+                    Demo approvals: {epoch.signatures.length}/4
                   </span>
                 </div>
               </div>
@@ -347,15 +303,15 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
         </div>
       </div>
 
-      {/* Inflow Ledger (Immutable Epoch Ties) */}
+      {/* Inflow records and epoch references */}
       <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
         <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-300">
           <div className="flex items-center gap-2">
             <LinkIcon className="w-4 h-4 text-blue-400" />
-            <span>Immutable Inflow Ties to Active Epochs</span>
+            <span>Recorded Inflow Links to Epochs</span>
           </div>
           <span className="text-slate-400 font-normal">
-            Every inflow permanently anchors to the active epoch at capture time
+            Each inflow stores the active epoch hash in this demo session
           </span>
         </div>
 
@@ -367,10 +323,10 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
                 <th className="p-3">Source Channel</th>
                 <th className="p-3">PayPal IDs / Mode</th>
                 <th className="p-3">Gross</th>
-                <th className="p-3">PayPal Fee</th>
+                <th className="p-3">Fee / Estimate</th>
                 <th className="p-3 font-semibold text-slate-200">Net Cents</th>
                 <th className="p-3">Bound Epoch</th>
-                <th className="p-3 text-right">Epoch SHA-256 Proof</th>
+                <th className="p-3 text-right">Epoch SHA-256 Reference</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80 bg-slate-900/40">
@@ -379,7 +335,7 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
                   <td className="p-3 font-mono font-bold text-blue-400">{inflow.id}</td>
                   <td className="p-3 font-medium text-slate-200">{inflow.source}</td>
                   <td className="p-3 font-mono text-[10px] text-slate-400">
-                    <div>Order: {inflow.paypalOrderId}</div>
+                    <div>{inflow.paymentMode === 'PAYPAL_SANDBOX' ? 'PayPal order' : 'Demo order'}: {inflow.paypalOrderId}</div>
                     {inflow.paypalCaptureId && (
                       <div className="text-slate-500">Capture: {inflow.paypalCaptureId}</div>
                     )}
@@ -392,11 +348,11 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
                             : 'text-slate-600'
                       }
                     >
-                      {inflow.paymentMode || 'Seeded demo'} · {inflow.paymentStatus || 'sample'}
+                      {inflow.paymentMode === 'SEED' ? 'Seeded example' : inflow.paymentMode || 'Seeded example'} · {inflow.paymentStatus || 'sample'}
                     </div>
                   </td>
                   <td className="p-3 text-slate-400">{centsToDollars(inflow.grossCents)}</td>
-                  <td className="p-3 text-red-400">-{centsToDollars(inflow.feeCents)}</td>
+                  <td className="p-3 text-red-400">-{centsToDollars(inflow.feeCents)}{inflow.feeIsEstimated ? ' (est.)' : ''}</td>
                   <td className="p-3 font-extrabold text-emerald-400">
                     {centsToDollars(inflow.netCents)}
                   </td>

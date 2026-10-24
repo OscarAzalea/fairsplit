@@ -218,7 +218,7 @@ export async function runBalanceAudit(
           date: item.processedAt || batch.timestamp,
           amountCents: item.amountCents,
           batchId: batch.senderBatchId,
-          status: item.status,
+          status: batch.mode === 'SIMULATED' ? 'SIMULATED' : 'SEED SAMPLE',
         });
       }
     });
@@ -273,8 +273,8 @@ export async function runBalanceAudit(
     totalAllocatedCents
   )} to you across ${inflows.length} customer revenue events, and ${centsToDollars(
     totalPaidCents
-  )} has been paid. ${reserveReallocationHistory.length > 0
-    ? `A reserve reallocation under a ratified epoch changed your net allocation by ${centsToDollars(netReserveAdjustmentCents)} while leaving original inflow and completed payout records intact.`
+  )} has been deducted in the demo ledger. ${reserveReallocationHistory.length > 0
+    ? `A reserve reallocation under a demo-approved epoch changed your net allocation by ${centsToDollars(netReserveAdjustmentCents)} while leaving original inflow and payout sample records intact.`
     : 'No reserve reallocation has been applied.'}`;
   let aiProvider: 'gemini' | 'heuristic' = 'heuristic';
 
@@ -288,8 +288,8 @@ ${JSON.stringify(reserveReallocationHistory, null, 2)}
 Payout details:
 ${JSON.stringify(payoutHistory, null, 2)}
 
-Current pending balance: ${centsToDollars(pendingCents)}. Original inflow allocation total: ${centsToDollars(totalAllocatedCents)}. Net change from reserve reallocation: ${centsToDollars(netReserveAdjustmentCents)}. Completed payouts: ${centsToDollars(totalPaidCents)}.
-Explain that reserve reallocation changes only unpaid balances and does not rewrite historical inflow allocations or completed payouts. Provide a concise, 2-paragraph professional and transparent summary. All amounts are computed deterministically in cents.`;
+Current pending balance: ${centsToDollars(pendingCents)}. Original inflow allocation total: ${centsToDollars(totalAllocatedCents)}. Net change from reserve reallocation: ${centsToDollars(netReserveAdjustmentCents)}. Demo payout deductions (seeded examples or simulations; not PayPal payout settlements): ${centsToDollars(totalPaidCents)}.
+Explain that reserve reallocation changes only unpaid balances and does not rewrite historical inflow allocations or demo payout deductions. Do not claim real payouts, identity verification, immutable storage, or legal signatures. Provide a concise, 2-paragraph professional and transparent summary. All amounts are computed deterministically in cents.`;
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
@@ -325,7 +325,7 @@ Explain that reserve reallocation changes only unpaid balances and does not rewr
     epochBreakdown,
     reserveReallocationHistory,
     payoutHistory,
-    integrityAttestation: `Certified by FairSplit Trust Ledger. Zero floating-point rounding variance detected. Every transaction is immutably anchored to a ratified SHA-256 epoch.`,
+    integrityAttestation: `This demo calculates balances in integer cents and links agreement records with SHA-256 hashes in the current browser session. It does not verify user identity or provide immutable storage.`,
   };
 }
 
@@ -413,30 +413,30 @@ function generateHeuristicAdvisor(
   if (topic.toLowerCase().includes('payout') || topic.toLowerCase().includes('fee')) {
     return {
       topic: 'PayPal Fee Optimization & Payout Timing',
-      executiveSummary: `Disburse batch payouts in bi-weekly thresholds of $500+ rather than frequent daily withdrawals to minimize fixed transaction overhead.`,
-      strategicInsight: `PayPal charges a fixed $0.49 per commercial inflow plus batch processing overhead. Distributing micro-amounts increases the relative fee percentage on your revenue from 3.1% up to 8.5%.`,
+      executiveSummary: `Review the unpaid reserve and recipient details before proposing a batch payout date.`,
+      strategicInsight: `This demo has an illustrative checkout fee estimate, but no verified PayPal Payouts fee quote. Use your Sandbox account's current pricing before making a real payout decision.`,
       actionSteps: [
-        `Maintain a minimum $500 threshold before triggering the PayPal Sandbox Payouts API.`,
-        `Consolidate multiple small customer inflows (Bandcamp + itch.io) into single batch disbursements.`,
-        `Establish an automated 1st-and-15th payout cadence for the 4 Project Aurora members.`,
+        `Check the available reserve before proposing a distribution.`,
+        `Review the four recipient addresses and each demo balance.`,
+        `Agree on a cadence with the team before connecting a real payout integration.`,
       ],
-      financialImpact: `Saves an estimated $18 to $35 per milestone by eliminating redundant fixed-penny charges across all 4 recipients.`,
-      confidenceScore: 94,
+      financialImpact: `No payout savings estimate is available without verified fee terms and a real payout quote.`,
+      confidenceScore: 50,
     };
   }
 
   if (topic.toLowerCase().includes('refund') || topic.toLowerCase().includes('steam')) {
     return {
       topic: 'Steam 14-Day Refund Buffer Strategy',
-      executiveSummary: `Maintain a 5% to 8% escrow reserve in your pending balance for 14 days following launch before distributing 100% of proceeds.`,
-      strategicInsight: `Steam permits players to refund games within 14 days and 2 hours of playtime. Distributing 100% of revenue immediately exposes the studio to clawbacks where collaborator accounts go into negative balance.`,
+      executiveSummary: `Review the platform's current refund policy and agree on a reserve before proposing distributions.`,
+      strategicInsight: `Refunds can reduce available revenue after a sale. This demo does not enforce a reserve policy or track real refund events.`,
       actionSteps: [
-        `Leave approximately ${centsToDollars(Math.round(pendingCents * 0.05))} in the unwithdrawn pending reserve.`,
-        `Ratify Epoch v2.0 after the 14-day launch window has officially passed.`,
+        `Discuss whether to reserve part of the current ${centsToDollars(pendingCents)} demo balance.`,
+        `Check the platform's current refund terms before choosing a release date.`,
         `Ensure all 4 members agree on clawback responsibility for disputed customer returns.`,
       ],
-      financialImpact: `Protects the studio against potential negative balance disputes on PayPal while preserving cash runway.`,
-      confidenceScore: 92,
+      financialImpact: `A reserve may reduce refund exposure; the appropriate amount needs actual sales and refund data.`,
+      confidenceScore: 50,
     };
   }
 
@@ -445,9 +445,9 @@ function generateHeuristicAdvisor(
     executiveSummary: `Structure non-core asset expansion (such as DLC or OST) through milestone-based rev-share epochs rather than permanently mutating foundational code equity.`,
     strategicInsight: `Core engineering (40%) and art (30%) anchor the game's foundation. Reallocating permanent equity for temporary workload spikes risks team friction when maintenance debt arises post-launch.`,
     actionSteps: [
-      `Keep Epoch v1.0 active for the base game.`,
-      `Create Epoch v2.0 targeted specifically at DLC, awarding the Composer a higher percentage on soundtrack revenue streams.`,
-      `Ratify the expansion agreement in Agreement Studio with all 4 counter-signatures.`,
+      `Review whether the active ${activeEpoch.version} agreement covers the base game.`,
+      `Propose a new epoch if DLC needs a different split, including a Composer share the team agrees to.`,
+      `Record demo approval from all four members in Agreement Studio.`,
     ],
     financialImpact: `Incentivizes dynamic soundtrack production while preserving long-term developer commitment for updates.`,
     confidenceScore: 90,
@@ -467,7 +467,7 @@ export async function runPayoutSchedulerAdvice(
   activeEpoch: Epoch
 ): Promise<PayoutRecommendation> {
   const apiKey = process.env.GEMINI_API_KEY;
-  const id = `REC-PAYOUT-${Date.now().toString().slice(-6)}`;
+  const id = `REC-PAYOUT-${crypto.randomUUID()}`;
   const now = new Date().toISOString();
 
   // Baseline recommended date: 7 days from now formatted
@@ -487,14 +487,14 @@ Context:
 - Current Unclaimed Pending Balance: ${centsToDollars(pendingCents)}
 - Active Contract Epoch: ${activeEpoch.version}
 - Collaborator stated need: "${reasonOrNeed}"
-- PayPal commercial fee: 2.99% + $0.49 per inflow; $0.25 per payout item.
+- Payout batches are simulated. There is no verified PayPal Payouts fee quote or automated payout scheduling.
 
-Provide an optimal, highly intelligent payout recommendation date (within the next 7-14 days) that balances member liquidity with studio fee minimization.
+Provide a proposed review date within the next 7-14 days that considers member liquidity. Do not assert specific fee savings or that a payout has been scheduled.
 Respond ONLY with a valid JSON object matching this schema:
 {
-  "recommendedDate": "<e.g. Friday, Nov 1, 2026>",
-  "recommendedAmountCents": <integer cents to disburse, up to ${pendingCents || 100000}>,
-  "feeOptimizationNote": "<1-2 sentences explaining why this timing balances liquidity with minimizing PayPal transaction drag>"
+  "recommendedDate": "<valid date in the next 7-14 days>",
+  "recommendedAmountCents": <integer cents to propose, up to ${Math.max(0, pendingCents)}>,
+  "feeOptimizationNote": "<1-2 sentences explaining that this is a proposal for review and fee terms must be checked>"
 }`;
 
       const response = await fetch(
@@ -525,8 +525,8 @@ Respond ONLY with a valid JSON object matching this schema:
             isAnonymous,
             reasonOrNeed: reasonOrNeed || 'Routine liquidity & milestone review',
             recommendedDate: parsed.recommendedDate || formattedDate,
-            recommendedAmountCents: Number(parsed.recommendedAmountCents) || pendingCents || 100000,
-            feeOptimizationNote: parsed.feeOptimizationNote || 'Optimizes batch timing to minimize fixed transaction overhead.',
+            recommendedAmountCents: Math.min(Math.max(0, pendingCents), Math.max(0, Math.floor(Number(parsed.recommendedAmountCents) || 0))),
+            feeOptimizationNote: parsed.feeOptimizationNote || 'Review reserve availability and current PayPal fee terms before any real payout.',
             status: 'PENDING_REVIEW',
           };
         }
@@ -544,8 +544,8 @@ Respond ONLY with a valid JSON object matching this schema:
     isAnonymous,
     reasonOrNeed: reasonOrNeed || 'Routine liquidity & milestone review',
     recommendedDate: formattedDate,
-    recommendedAmountCents: pendingCents > 0 ? pendingCents : 125000,
-    feeOptimizationNote: `Recommends a batch release of ${centsToDollars(pendingCents || 125000)} on ${formattedDate} to clear pending obligations while keeping relative PayPal fee drag under 1.2%.`,
+    recommendedAmountCents: Math.max(0, pendingCents),
+    feeOptimizationNote: `Proposes reviewing up to ${centsToDollars(Math.max(0, pendingCents))} on ${formattedDate}; check current fee terms and available funds before any real payout.`,
     status: 'PENDING_REVIEW',
   };
 }
@@ -599,7 +599,8 @@ export async function runStudioChat(
       lastAiMessage.text.includes('should it say you proposed it') ||
       lastAiMessage.text.includes('attribute this recommendation') ||
       lastAiMessage.text.includes('attribute this request') ||
-      lastAiMessage.text.includes('attribute it'));
+      lastAiMessage.text.includes('attribute it') ||
+      lastAiMessage.text.includes('How should I label'));
 
   if (isAttributionResponse || wasAskingAttribution) {
     let isAnonymous = false;
@@ -614,7 +615,7 @@ export async function runStudioChat(
     ) {
       isAnonymous = true;
       requesterName = 'Anonymous Collaborator';
-      attributionLabel = 'Anonymously (Protected identity)';
+      attributionLabel = 'Anonymous in this demo queue';
     } else if (
       lowerMsg === 'ai_suggestion' ||
       lowerMsg.includes('just an ai') ||
@@ -622,12 +623,15 @@ export async function runStudioChat(
       lowerMsg.includes('autonomous')
     ) {
       isAnonymous = true;
-      requesterName = 'FairSplit AI Financial Controller (Fee-Optimization Cadence)';
-      attributionLabel = 'Autonomous AI Optimization Suggestion';
+      requesterName = 'FairSplit AI suggestion';
+      attributionLabel = 'AI suggestion';
     }
 
-    const recId = `REC-PAYOUT-${Date.now().toString().slice(-6)}`;
-    const amountCents = pendingReserveCents > 0 ? pendingReserveCents : 125000;
+    if (pendingReserveCents <= 0) {
+      return { reply: 'There is no available demo reserve to propose for payout yet. Record an inflow first, then I can prepare a suggestion for team review.' };
+    }
+    const recId = `REC-PAYOUT-${crypto.randomUUID()}`;
+    const amountCents = pendingReserveCents;
 
     const proposal: PayoutRecommendation = {
       id: recId,
@@ -638,12 +642,12 @@ export async function runStudioChat(
       reasonOrNeed: 'Upcoming liquidity requirement & milestone compensation',
       recommendedDate: formattedDate,
       recommendedAmountCents: amountCents,
-      feeOptimizationNote: `Recommends a batch release of ${centsToDollars(amountCents)} on ${formattedDate} to clear pending member obligations while keeping relative PayPal fee drag under 1.2%.`,
+      feeOptimizationNote: `Proposes reviewing ${centsToDollars(amountCents)} on ${formattedDate}. Confirm available funds and current fee terms before any real payout.`,
       status: 'PENDING_REVIEW',
     };
 
     return {
-      reply: `Cool, I've prepared the recommendation memo attributed as **${attributionLabel}**.\n\nI calculated that disbursing **${centsToDollars(amountCents)}** on **${formattedDate}** balances your liquidity need with studio reserves, while keeping PayPal transaction fees at minimum.\n\nShall I submit this to the Payments Hub queue for Marcus to review?`,
+      reply: `I prepared a demo recommendation labelled **${attributionLabel}**.\n\nIt proposes reviewing up to **${centsToDollars(amountCents)}** on **${formattedDate}**. No payout is scheduled, and the team should confirm fee terms and available funds.\n\nShall I add this suggestion to the Payments Hub queue for Marcus to review?`,
       proposal,
     };
   }
@@ -663,8 +667,11 @@ export async function runStudioChat(
     lowerMsg.includes('suggest');
 
   if (isPayoutRequest) {
+    if (pendingReserveCents <= 0) {
+      return { reply: 'The demo reserve is currently empty. Record an inflow first, then I can propose a payout date for team review.' };
+    }
     return {
-      reply: `I can definitely propose that to Marcus! Our studio currently has **${centsToDollars(pendingReserveCents)}** in pending reserves, which is plenty to cover an early payout run without high fee drag.\n\nI can suggest scheduling it for **${formattedDate}**.\n\nBefore I submit it to the team dashboard, how should I attribute it?\n• Should it say you proposed it (**${currentMember.name}**)?\n• **Anonymously** ('Anonymous Collaborator')?\n• Or should it just be an autonomous **AI suggestion**?`,
+      reply: `The demo reserve is **${centsToDollars(pendingReserveCents)}**. I can suggest **${formattedDate}** as a date for the team to review a possible payout; this does not schedule one.\n\nHow should I label the suggestion?\n• Under your name (**${currentMember.name}**)?\n• Anonymous?\n• Or as an AI suggestion?`,
       quickOptions: [
         { label: `👤 Under my name (${currentMember.name.split(' ')[0]})`, value: 'attributed' },
         { label: '🕵️ Anonymous', value: 'anonymous' },
@@ -686,14 +693,14 @@ User chatting with you: ${currentMember.name} (${currentMember.roleTitle}, ID: $
 Active Contract Epoch: ${activeEpoch.version}
 Current Studio Pending Reserve: ${centsToDollars(pendingReserveCents)} (${pendingReserveCents} cents).
 Total Inflows Processed: ${inflowsCount}
-PayPal Fee Model: 2.99% + $0.49 per inflow; $0.25 per batch payout item.
+Checkout fee preview: illustrative 2.99% + $0.49 per inflow; real capture amounts take priority. Payouts are simulated with no verified fee quote.
 
 Recent Chat:
 ${historyText}
 
 User Query: "${userMessage}"
 
-Respond conversationally, warmly, and concisely (2-4 sentences max). If they are asking about Steam refunds, PayPal fees, or DLC splits, give specific, actionable advice based on Project Aurora's numbers.`;
+Respond conversationally and concisely (2-4 sentences max). Do not claim a payout was sent or scheduled, a fee was verified, or a savings amount was proven.`;
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
@@ -725,15 +732,14 @@ Respond conversationally, warmly, and concisely (2-4 sentences max). If they are
 
   // Fallback heuristic answers for common advisory topics
   if (lowerMsg.includes('steam') || lowerMsg.includes('refund')) {
-    const bufferAmount = centsToDollars(Math.round(pendingReserveCents * 0.06));
     return {
-      reply: `For Steam launches, I recommend holding a 5% to 8% escrow reserve (~**${bufferAmount}** from our current pending balance of ${centsToDollars(pendingReserveCents)}) for 14 days. This accommodates customer returns without causing negative PayPal balance disputes. Once the 14-day window passes, the escrow can be safely distributed.`,
+      reply: `Refunds can reduce available revenue after a sale. The current demo reserve is **${centsToDollars(pendingReserveCents)}**. Review Steam's current refund terms and agree on an amount to hold before proposing a distribution; this app does not track refunds automatically.`,
     };
   }
 
   if (lowerMsg.includes('fee') || lowerMsg.includes('cost')) {
     return {
-      reply: `PayPal charges a fixed fee of $0.49 per commercial inflow plus $0.25 per payout item. Triggering daily micro-withdrawals drives relative fee drag up to ~8%. Batching payouts once studio reserves cross **$500+** keeps total fee overhead down to ~1.2%, saving our team $18–$35 per milestone.`,
+      reply: `FairSplit's checkout preview uses an illustrative 2.99% + $0.49 fee assumption; a real Sandbox capture uses PayPal's returned net and fee when available. Payouts here are simulated, so I cannot verify a payout fee or claim that a particular batch date saves money.`,
     };
   }
 

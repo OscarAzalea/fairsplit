@@ -71,7 +71,7 @@ export const IntegrationStatusBar: React.FC = () => {
         </div>
         <button
           type="button"
-          onClick={() => { try { localStorage.clear(); } catch(e){} window.location.reload(); }}
+          onClick={() => window.location.reload()}
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-700 bg-slate-900 text-[10px] font-semibold text-slate-300 hover:text-white hover:border-slate-500 transition"
           aria-label="Reset demo and restore the seeded example data"
           title="Restore the seeded demo data"

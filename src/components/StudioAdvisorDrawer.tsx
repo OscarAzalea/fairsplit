@@ -4,7 +4,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Bot,
-  Sparkles,
   Send,
   Loader2,
   CheckCircle2,
@@ -26,6 +25,10 @@ interface StudioAdvisorDrawerProps {
   currentMember: Member;
 }
 
+function messageId(prefix: string): string {
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
 export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
   isOpen,
   onClose,
@@ -35,28 +38,18 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
   onPushRecommendation,
   currentMember,
 }) => {
-  const [messages, setMessages] = useState<StudioChatMessage[]>([]);
+  const [messages, setMessages] = useState<StudioChatMessage[]>(() => [{
+    id: 'msg-initial-greeting',
+    sender: 'ai',
+    text: `Hi ${currentMember.name.split(' ')[0]}! 👋 I'm your FairSplit Studio Advisor. Ask me about your demo balance, agreements, or a suggested payout date for the team lead to review.`,
+    timestamp: 'Welcome',
+  }]);
   const [inputValue, setInputValue] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [submittedProposalIds, setSubmittedProposalIds] = useState<Set<string>>(new Set());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Initialize greeting on first load or persona change
-  useEffect(() => {
-    if (messages.length === 0) {
-      const firstName = currentMember.name.split(' ')[0];
-      setMessages([
-        {
-          id: 'msg-initial-greeting',
-          sender: 'ai',
-          text: `Hi ${firstName}! 👋 I'm your FairSplit Studio Financial Advisor & Payout Mediator for Project Aurora.\n\nYou can ask me anything about our rev-share, Steam refund buffers, or PayPal fee optimization—or if you need an early payout or want to suggest our next batch payout date to Marcus, just let me know!`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
-    }
-  }, [currentMember, messages.length]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -79,7 +72,7 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
     if (!text || isLoading) return;
 
     const userMsg: StudioChatMessage = {
-      id: `user-${Date.now()}`,
+      id: messageId('user'),
       sender: 'user',
       text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -110,7 +103,7 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
       const data = await res.json();
 
       const aiMsg: StudioChatMessage = {
-        id: `ai-${Date.now()}`,
+        id: messageId('ai'),
         sender: 'ai',
         text: data.reply || 'I processed your request.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -123,7 +116,7 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
       console.error('AI chat failed:', err);
       // Friendly fallback
       const aiMsg: StudioChatMessage = {
-        id: `ai-err-${Date.now()}`,
+        id: messageId('ai-err'),
         sender: 'ai',
         text: `I'm having a brief connection delay, but I'm monitoring our ${centsToDollars(pendingReserveCents)} pending reserve. If you'd like to propose an early payout to Marcus, let me know if it should be under your name, anonymous, or an AI suggestion!`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -146,9 +139,9 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
 
       // Add confirmation message to chat
       const confirmMsg: StudioChatMessage = {
-        id: `ai-confirm-${Date.now()}`,
+        id: messageId('ai-confirm'),
         sender: 'ai',
-        text: `✅ Done! I've submitted the recommendation memo directly to the **Payments Hub** queue. Marcus will see it when reviewing upcoming payouts.`,
+        text: `✅ Done! The recommendation memo is now in this demo session's Payments Hub queue.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, confirmMsg]);
@@ -169,7 +162,7 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
 
   const starterSuggestions = [
     'Can we propose an early payout to Marcus? Rent is due soon.',
-    'When should we trigger our next batch to minimize PayPal fees?',
+    'What should we check before proposing the next payout batch?',
     'How much should we set aside for Steam refund buffers?',
     'How should we structure DLC rev-share for the Composer?',
   ];
@@ -187,7 +180,7 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-white leading-tight">FairSplit AI Studio Advisor</h2>
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 shrink-0">
-                  Gemini 3.5 Flash
+                  Gemini when available
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
@@ -402,7 +395,7 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
             </button>
           </form>
           <div className="flex items-center justify-between text-[10px] text-slate-500 px-1 mt-2">
-            <span>Powered by Gemini 3.5 Flash & PayPal Payouts API</span>
+            <span>Gemini when available · PayPal Sandbox checkout · payout batches simulated</span>
             <span>Press Enter to send</span>
           </div>
         </div>

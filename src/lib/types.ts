@@ -52,16 +52,17 @@ export interface Inflow {
   timestamp: string;
   paypalOrderId: string;
   paypalCaptureId?: string;
-  paymentMode?: 'PAYPAL_SANDBOX' | 'SIMULATED';
-  paymentStatus?: 'COMPLETED' | 'SIMULATED';
-  epochId: string; // Immutable link to active epoch
-  epochHash: string; // Immutable tie to active epoch SHA-256
+  paymentMode?: 'PAYPAL_SANDBOX' | 'SIMULATED' | 'SEED';
+  paymentStatus?: 'COMPLETED' | 'SIMULATED' | 'SAMPLE';
+  feeIsEstimated?: boolean;
+  epochId: string; // Agreement active when the inflow was recorded
+  epochHash: string; // SHA-256 reference to that agreement in this session
   allocations: InflowAllocation[];
 }
 
 /**
  * An auditable redistribution of the unpaid reserve under a newly ratified epoch.
- * It leaves the original inflow allocations and completed payouts untouched.
+ * It leaves the original inflow allocations and demo payout deductions untouched.
  */
 export interface ReserveReallocation {
   id: string;
@@ -96,6 +97,7 @@ export interface PayoutBatch {
   timestamp: string;
   totalCents: number;
   status: PayoutStatus;
+  mode?: 'SEED' | 'SIMULATED';
   items: PayoutItem[];
   rawPayload?: Record<string, unknown>;
   rawResponse?: Record<string, unknown>;

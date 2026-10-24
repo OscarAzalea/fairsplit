@@ -1,5 +1,5 @@
 import type { PayoutItem, PayoutStatus } from './types';
-import { centsToDollars } from './fairsplit-math';
+import { calculatePayPalFeeCents, dollarsToCents } from './fairsplit-math';
 
 export interface PayPalOrderResponse {
   id: string;
@@ -145,7 +145,7 @@ export async function createSandboxOrder(
   }
 
   // Standalone simulator. It does not create an order at PayPal.
-  const orderId = `ORD-SANDBOX-${Math.floor(100000 + Math.random() * 900000)}`;
+  const orderId = `SIM-ORDER-${crypto.randomUUID()}`;
   return {
     id: orderId,
     mode: 'simulated',
@@ -162,24 +162,12 @@ export async function createSandboxOrder(
       },
     ],
     create_time: new Date().toISOString(),
-    links: [
-      {
-        href: `https://www.sandbox.paypal.com/checkoutnow?token=${orderId}`,
-        rel: 'approve',
-        method: 'GET',
-      },
-      {
-        href: `/api/paypal/capture-order?orderId=${orderId}`,
-        rel: 'capture',
-        method: 'POST',
-      },
-    ],
   };
 }
 
 /**
- * Captures a buyer-approved PayPal Sandbox order. A simulator amount is
- * accepted only for locally generated simulator IDs.
+ * Captures a buyer-approved PayPal Sandbox order, or returns a clearly marked
+ * synthetic capture in local simulator mode.
  */
 export async function captureSandboxOrder(
   orderId: string,
@@ -200,6 +188,7 @@ export async function captureSandboxOrder(
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
+          'PayPal-Request-Id': `FS-CAPTURE-${orderId}`,
         },
         body: '{}',
         cache: 'no-store',
@@ -213,8 +202,8 @@ export async function captureSandboxOrder(
     return { ...(await captureRes.json()), mode: 'sandbox' };
   }
 
-  if (!/^ORD-SANDBOX-\d{6}$/.test(orderId)) {
-    throw new Error('Simulator can only capture its own generated order IDs.');
+  if (!/^SIM-ORDER-[0-9a-f-]{36}$/.test(orderId)) {
+    throw new Error('A valid synthetic order ID is required.');
   }
   if (
     typeof simulatedAmountDollars !== 'number' ||
@@ -225,9 +214,11 @@ export async function captureSandboxOrder(
   }
 
   const amountDollars = simulatedAmountDollars;
-  const grossValue = amountDollars.toFixed(2);
-  const feeValue = (amountDollars * 0.0299 + 0.49).toFixed(2);
-  const netValue = (amountDollars - parseFloat(feeValue)).toFixed(2);
+  const grossCents = dollarsToCents(amountDollars);
+  const feeCents = Math.min(grossCents, calculatePayPalFeeCents(grossCents));
+  const grossValue = (grossCents / 100).toFixed(2);
+  const feeValue = (feeCents / 100).toFixed(2);
+  const netValue = ((grossCents - feeCents) / 100).toFixed(2);
 
   return {
     id: orderId,
@@ -238,7 +229,7 @@ export async function captureSandboxOrder(
         payments: {
           captures: [
             {
-              id: `CAP-${Math.floor(100000 + Math.random() * 900000)}`,
+              id: `SIM-CAP-${crypto.randomUUID()}`,
               status: 'COMPLETED',
               amount: {
                 currency_code: 'USD',
@@ -258,8 +249,7 @@ export async function captureSandboxOrder(
 }
 
 /**
- * Constructs and executes a PayPal Payouts API batch payload.
- * Conforms strictly to PayPal Payouts API schema with idempotent keys.
+ * Builds a PayPal Payouts API request preview. This app does not send it.
  */
 export function buildPayPalPayoutPayload(
   senderBatchId: string,
@@ -268,9 +258,9 @@ export function buildPayPalPayoutPayload(
   return {
     sender_batch_header: {
       sender_batch_id: senderBatchId,
-      email_subject: 'Your Project Aurora Rev-Share Payout is Here!',
+      email_subject: 'Project Aurora proposed rev-share distribution',
       email_message:
-        'FairSplit has verified and distributed your earnings under the active Trust Ledger epoch.',
+        'Proposed FairSplit earnings distribution under the active agreement.',
       recipient_type: 'EMAIL',
     },
     items: items.map((item) => ({
@@ -280,7 +270,7 @@ export function buildPayPalPayoutPayload(
         currency: 'USD',
       },
       receiver: item.receiverEmail,
-      note: item.note || 'FairSplit verified distribution',
+      note: item.note || 'FairSplit proposed distribution',
       sender_item_id: item.senderItemId,
     })),
   };
@@ -290,18 +280,19 @@ export function buildPayPalPayoutPayload(
  * Simulates executing PayPal Payouts API batch with realistic latency
  * and per-item status validation.
  */
-export async function executePayPalPayoutBatch(
+export async function simulatePayPalPayoutBatch(
   senderBatchId: string,
   items: PayoutItem[]
 ): Promise<{
   payoutBatchId: string;
+  mode: 'SIMULATED';
   status: PayoutStatus;
   items: PayoutItem[];
   rawPayload: Record<string, unknown>;
   rawResponse: Record<string, unknown>;
 }> {
   const payload = buildPayPalPayoutPayload(senderBatchId, items);
-  const payoutBatchId = `PAYPAL-BATCH-${Math.floor(10000000 + Math.random() * 90000000)}`;
+  const payoutBatchId = `SIM-BATCH-${crypto.randomUUID()}`;
 
   // Simulate network delay of PayPal Payouts engine
   await new Promise((resolve) => setTimeout(resolve, 600));
@@ -311,7 +302,7 @@ export async function executePayPalPayoutBatch(
     const isSuccess = Boolean(item.receiverEmail && item.amountCents > 0);
     return {
       ...item,
-      payoutItemId: `P-ITEM-${Math.floor(10000 + Math.random() * 90000)}`,
+      payoutItemId: `SIM-ITEM-${crypto.randomUUID()}`,
       status: (isSuccess ? 'SUCCESS' : 'FAILED') as PayoutStatus,
       processedAt: new Date().toISOString(),
       error: isSuccess ? undefined : 'Invalid receiver or zero amount',
@@ -321,23 +312,18 @@ export async function executePayPalPayoutBatch(
   const allSuccess = updatedItems.every((i) => i.status === 'SUCCESS');
 
   const rawResponse = {
+    simulation: true,
     batch_header: {
-      payout_batch_id: payoutBatchId,
-      batch_status: allSuccess ? 'SUCCESS' : 'DENIED',
+      simulation_batch_id: payoutBatchId,
+      batch_status: allSuccess ? 'SIMULATED_SUCCESS' : 'SIMULATED_FAILURE',
       time_created: new Date().toISOString(),
-      sender_batch_header: payload.sender_batch_header,
+      message: 'No PayPal Payouts API request was sent and no money was transferred.',
     },
-    links: [
-      {
-        href: `https://api-m.sandbox.paypal.com/v1/payments/payouts/${payoutBatchId}`,
-        rel: 'self',
-        method: 'GET',
-      },
-    ],
   };
 
   return {
     payoutBatchId,
+    mode: 'SIMULATED',
     status: (allSuccess ? 'SUCCESS' : 'FAILED') as PayoutStatus,
     items: updatedItems,
     rawPayload: payload,

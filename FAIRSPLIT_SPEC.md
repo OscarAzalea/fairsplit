@@ -8,16 +8,16 @@
 
 Modern creative collectives—indie game studios, modding groups, and independent music production crews—face systemic trust friction when distributing collaborative revenue:
 1. **Spreadsheet Drift & Math Ambiguity**: Rounding errors across uneven percentages cause lost cents, discrepancy disputes, and unverified deductions.
-2. **Retroactive Split Alterations**: Without an immutable historical record, agreements are disputed post-success, leading to team breakdown and delayed game releases.
+2. **Retroactive Split Alterations**: Without a visible agreement history, teams can dispute which split was active when revenue arrived.
 3. **Black-Box Payouts**: Collaborators receive lump sums via PayPal without transparent, itemized proof of which inflows generated their balance or which fee deductions were made.
-4. **Idempotency & Double-Payout Risk**: Manual payouts risk accidental duplicate payments or unverified failures during batch transfers.
+4. **Payout Planning**: Teams need to review proposed amounts and recipients before connecting a real payout system.
 
 **FairSplit** solves this by unifying:
 - **Deterministic Fintech Math in Integer Cents** (Hamilton-Hare / Largest Remainder algorithm; zero float errors).
-- **Agreement Studio**: Interactive split dials, Gemini-powered Socratic AI negotiation drawer with structured output mediation, and cryptographic 4-party ratification.
-- **Trust Ledger**: Append-only SHA-256 hash-chained epochs (`v1.0` -> `v2.0`), where every customer inflow is immutably linked to the active epoch hash.
+- **Agreement Studio**: Interactive split dials and direct percentage entry, Gemini-powered Socratic AI negotiation, and a four-member demo approval flow.
+- **Trust Ledger**: SHA-256 linked agreement records in browser memory, where every inflow references the active agreement hash. The verifier checks internal consistency, not identity or immutable storage.
 - **Payments Hub**: PayPal Sandbox Orders checkout with buyer approval and server-side capture when credentials are configured; local simulation otherwise. Payout payloads are prepared and their results are simulated in this version.
-- **Explain My Balance AI**: Plain-English, transparent audits explaining every penny without hallucinating numbers.
+- **Explain My Balance AI**: Integer-cent calculations are performed in code; Gemini may provide a plain-English explanation of those calculated values.
 
 ---
 
@@ -33,10 +33,10 @@ Modern creative collectives—indie game studios, modding groups, and independen
          v                                                         v
 +-----------------------+                                 +-----------------------+
 |   AGREEMENT STUDIO    |                                 |     TRUST LEDGER      |
-| - Project Aurora 4-way|                                 | - Append-only Epochs  |
-| - Interactive Dials   | ===== [Ratification (4/4)] ===> | - SHA-256 Hash Chain  |
-| - Gemini Socratic AI  |                                 | - Immutable Inflows   |
-| - Digital Signatures  |                                 | - Integrity Verifier  |
+| - Project Aurora 4-way|                                 | - Session Epochs      |
+| - Direct % Entry      | ===== [Demo Approval (4/4)] ==> | - SHA-256 Hash Links  |
+| - Gemini Socratic AI  |                                 | - Recorded Inflows    |
+| - Demo Approvals      |                                 | - Integrity Verifier  |
 +-----------------------+                                 +-----------------------+
                                                                    |
                                                                    v
@@ -61,7 +61,7 @@ Modern creative collectives—indie game studios, modding groups, and independen
 - **All financial calculations** (inflows, merchant fees, basis points splits, remaining penny allocation, payout deductions) are strictly executed in **pure deterministic TypeScript using integer cents**.
 - **AI (Gemini)** is strictly partitioned:
   - **Mediation & Socratic Inquiry**: Reasoning about contributor trade-offs, milestones, and dispute resolution.
-  - **Plain-English Auditing**: Translating cryptographically verifiable ledger math into human-friendly explanations. AI is NEVER allowed to perform raw arithmetic.
+  - **Plain-English Auditing**: Translating code-calculated ledger math into human-friendly explanations. AI is not used to calculate balances.
 
 ---
 
@@ -93,11 +93,11 @@ interface Epoch {
   epochId: string;           // e.g. "epoch-v1.0"
   version: string;           // "v1.0", "v2.0"
   title: string;             // "Genesis Production Agreement"
+  description: string;
   createdAt: string;         // ISO timestamp
+  effectiveFrom: string;     // ISO timestamp
   splits: {
     memberId: string;
-    role: string;
-    name: string;
     bps: number;             // Sum must be 10000
   }[];
   previousHash: string;      // Genesis: "0000000000000000000000000000000000000000000000000000000000000000"
@@ -106,31 +106,33 @@ interface Epoch {
     memberId: string;
     name: string;
     signedAt: string;
-    signatureHash: string;
+    signatureHash: string;   // Demo hash, not an authenticated signature
   }[];
   status: 'ACTIVE' | 'PROPOSED' | 'SUPERSEDED';
 }
 ```
 
-Canonical Epoch Hash:
-$$\text{hash} = \text{SHA-256}(\text{epochId} + \text{version} + \text{previousHash} + \text{splitsCanonicalJson})$$
+The code hashes `FAIRSPLIT_EPOCH:` followed by JSON containing `epochId`, `version`, `previousHash`, `createdAt`, and splits sorted by `memberId`. The session checks this value and the preceding link; it has no independent trusted anchor.
 
-### 3.4 Inflow Schema (Immutable Epoch Binding)
+### 3.4 Inflow Schema (Epoch Reference)
 ```typescript
 interface Inflow {
   id: string;                // e.g. "INF-001"
   source: string;            // e.g. "Steam Sale Batch - Early Access"
   grossCents: number;        // e.g. 250000 ($2,500.00)
-  feeCents: number;          // PayPal fee (2.99% + $0.49 = 7524 cents)
+  feeCents: number;          // PayPal-reported fee or illustrative estimate
   netCents: number;          // 242476 cents ($2,424.76)
   currency: 'USD';
   timestamp: string;
-  paypalOrderId: string;     // PayPal Sandbox Order ID
+  paypalOrderId: string;     // Sandbox order ID or clearly labelled demo ID
+  paypalCaptureId?: string;
+  paymentMode?: 'PAYPAL_SANDBOX' | 'SIMULATED' | 'SEED';
+  paymentStatus?: 'COMPLETED' | 'SIMULATED' | 'SAMPLE';
+  feeIsEstimated?: boolean;
   epochId: string;           // "epoch-v1.0"
   epochHash: string;         // SHA-256 of epoch active at moment of capture
   allocations: {
     memberId: string;
-    role: string;
     bps: number;
     cents: number;
   }[];
@@ -166,19 +168,16 @@ interface Inflow {
     ```
 - **Ratification Protocol**:
   - Requires all 4 members to sign before activating epoch.
-  - Signs payload with deterministic SHA-256 member key simulation.
+  - Records demo approvals with SHA-256-derived values; there is no user identity verification or legally binding signature.
   - Locks previous epoch to `SUPERSEDED`, sets new epoch to `ACTIVE`, and re-chains hash.
 
 ### 4.2 Trust Ledger
 - **Live Chain Explorer**: Visual representation of `v1.0 -> v2.0` blocks with hashes, timestamps, and signatures.
-- **Cryptographic Verifier**: Client-side re-computation of SHA-256 hashes verifying that zero tampering has occurred.
-- **Forensic Anti-Tamper Attribution ("Certainty-Only" Attribution Engine)**:
-  - When an epoch hash mismatch occurs, the cryptographic engine performs mathematical delta analysis across all signed counter-party allocations.
-  - **High-Confidence Attribution**: If a single participant's equity share was unilaterally inflated without valid counter-party digital signatures, the forensic engine attributes the suspect with 100% cryptographic certainty and flags an automated payout freeze.
-  - **Withheld Attribution (Inconclusive)**: If the corruption is an anonymous or structural bit flip in transport where no individual collaborator benefits, attribution is explicitly withheld to prevent false accusations.
+- **Integrity Verifier**: Client-side re-computation of SHA-256 hashes and links for the current session.
+- **Tamper Demonstration**: A changed split or timestamp produces a hash mismatch. This does not prove who made the change; actor attribution is always inconclusive.
 - **Collaborator Balance Cards**:
-  - Real-time calculation uses immutable inflow allocations and successful payouts, plus any reserve reallocation snapshots.
-  - Existing inflows retain their capture epoch. After a new epoch is ratified, collaborators can explicitly apply its split to the current unpaid reserve; this changes pending entitlements without rewriting historical inflow allocations or completed payouts.
+  - Real-time calculation uses recorded inflow allocations, seeded and simulated payout deductions, and reserve reallocation snapshots.
+  - Existing inflows retain their capture epoch. Demo approval of a new epoch automatically applies its split to the unpaid reserve; this changes pending entitlements without rewriting historical inflow allocations or demo payout records.
   - Subsequent inflows and payouts are applied on top of the latest reserve snapshot, so the balance cards and payout preparation use the same cents-exact balance calculation.
   - One-click trigger for **"Explain My Balance"** AI Auditor.
 
@@ -195,8 +194,8 @@ interface Inflow {
 
 #### B. Outflows (Simulated Payout Batch)
 - Prepares a Payouts API payload for inspection:
-  - `sender_batch_header.sender_batch_id`: Unique idempotency key `BATCH-AURORA-[TIMESTAMP]-[RAND]`.
-  - `items[].sender_item_id`: Unique idempotency key `ITEM-AURORA-[MEMBER_ID]-[TIMESTAMP]`.
+  - `sender_batch_header.sender_batch_id`: Stable preview ID within the current demo state.
+  - `items[].sender_item_id`: Stable per-member preview ID within the current demo state.
   - `items[].receiver`: Collaborator PayPal email.
   - `items[].amount.value`: Converted from cents to formatted USD string (e.g. `"969.90"`).
 - Simulates each item's result. No PayPal Payouts API call is made and no money is sent.
@@ -232,7 +231,7 @@ PAYPAL_CLIENT_SECRET=your_paypal_sandbox_secret
 
 ## 7. Verification & Hackathon Testing Guide
 1. **Agreement Studio**: Adjust dials to test proportional auto-balancing (always sums to 100.00%). Open the Socratic AI drawer to request mediation. Propose a new epoch and complete 4/4 ratification.
-2. **Trust Ledger**: Observe the SHA-256 hash chain update from `v1.0` to `v2.0`. Run the Ledger Integrity Verifier to validate chain authenticity.
-3. **Payments Hub (Inflows)**: Trigger a `$2,500.00` Steam Sale batch or custom amount. With credentials, approve it as a Sandbox buyer; otherwise use the clearly labelled simulator. Review the settled amounts and deterministic cents distribution.
+2. **Trust Ledger**: Observe the SHA-256 hash links update from `v1.0` to `v2.0`. Run the Ledger Integrity Verifier to check the current session's consistency.
+3. **Payments Hub (Inflows)**: Trigger the `$49.99` direct-purchase example or a custom amount. With credentials, approve it as a Sandbox buyer; otherwise use the clearly labelled simulator. Review the captured or simulated amount and deterministic cents distribution.
 4. **Explain My Balance**: Click the audit button on any collaborator to see Gemini's step-by-step mathematical breakdown.
 5. **Payments Hub (Payouts)**: Select members, inspect the raw Payouts API batch payload and run the simulated distribution. This demo sends no funds.

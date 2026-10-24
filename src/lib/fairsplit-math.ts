@@ -22,12 +22,9 @@ export function centsToDollars(cents: number): string {
   return `${isNegative ? '-' : ''}$${dollars}`;
 }
 
-/**
- * Formats basis points into human-readable percentage, e.g. 4000 -> "40.0%".
- */
+/** Formats the full basis-point precision without hiding a 0.01% change. */
 export function bpsToPercent(bps: number): string {
-  const pct = (bps / 100).toFixed(1);
-  return `${pct.endsWith('.0') ? pct.slice(0, -2) : pct}%`;
+  return `${(bps / 100).toFixed(2).replace(/\.?0+$/, '')}%`;
 }
 
 /**
@@ -38,15 +35,15 @@ export function bpsToExactPercent(bps: number): string {
 }
 
 /**
- * Calculates PayPal Standard Commercial transaction fee in cents:
- * 2.99% + $0.49 (49 cents).
+ * Calculates a demo processing-fee estimate in cents using an illustrative
+ * 2.99% + $0.49 assumption. Actual PayPal Sandbox capture values take priority.
  */
 export function calculatePayPalFeeCents(grossCents: number): number {
   if (grossCents <= 0) return 0;
   // 2.99% = 0.0299 * grossCents + 49 cents fixed
   const percentageFee = Math.round(grossCents * 0.0299);
   const fixedFee = 49;
-  return percentageFee + fixedFee;
+  return Math.min(grossCents, percentageFee + fixedFee);
 }
 
 /**

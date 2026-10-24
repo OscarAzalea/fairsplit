@@ -1,4 +1,4 @@
-import type {  ChainVerificationResult, Epoch, EpochSplit, ForensicAttribution, MemberRole, RatificationSignature  } from './types';
+import type { ChainVerificationResult, Epoch, EpochSplit, ForensicAttribution } from './types';
 
 /**
  * Pure TypeScript SHA-256 implementation for synchronous execution
@@ -9,9 +9,7 @@ function sha256Pure(ascii: string): string {
     return (value >>> amount) | (value << (32 - amount));
   }
 
-  const mathPow = Math.pow;
-  const maxWord = mathPow(2, 32);
-  let lengthProperty = 'length';
+  const lengthProperty = 'length';
   let i = 0;
   let j = 0;
   let result = '';
@@ -19,7 +17,7 @@ function sha256Pure(ascii: string): string {
   const words: number[] = [];
   const asciiBitLength = ascii[lengthProperty as 'length'] * 8;
 
-  let hash = [
+  const hash = [
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
     0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
   ];
@@ -138,95 +136,31 @@ export function generateMemberSignatureHash(
   return sha256(`${epochHash}:${memberId}:${timestamp}:${secretSalt}`);
 }
 
-/**
- * Forensically analyzes an invalid epoch to identify the tamper vector and
- * attribute the malicious actor ONLY IF cryptographic certainty is established.
- */
+/** A hash mismatch detects changed bytes; it cannot identify an editor. */
 function analyzeTamperForensics(
   epoch: Epoch,
   tamperReason: 'HASH_MISMATCH' | 'PREV_HASH_CORRUPTION'
 ): ForensicAttribution {
-  // Map of known member display names
-  const memberNames: Record<MemberRole, string> = {
-    dev: 'Alex Mercer (Lead Engineer)',
-    artist: 'Elena Vance (Art Director)',
-    writer: 'Marcus Chen (Narrative Lead)',
-    composer: 'Lyra Song (Sound Designer)',
-  };
-
   if (tamperReason === 'HASH_MISMATCH') {
-    // Check if the splits were tampered with:
-    // Genesis expected standard baseline vs current splits
-    const baselineBps: Record<MemberRole, number> = {
-      dev: 4000,
-      artist: 3000,
-      writer: 2000,
-      composer: 1000,
-    };
-
-    // Calculate sum and individual member delta
-    const currentTotal = epoch.splits.reduce((acc, s) => acc + s.bps, 0);
-
-    // Look for a member who unilaterally gained equity
-    const beneficiaries: { role: MemberRole; name: string; gainBps: number }[] = [];
-    epoch.splits.forEach((s) => {
-      const expected = baselineBps[s.memberId] ?? 0;
-      if (s.bps > expected) {
-        beneficiaries.push({
-          role: s.memberId,
-          name: memberNames[s.memberId] || s.memberId,
-          gainBps: s.bps - expected,
-        });
-      }
-    });
-
-    // Check if one specific party gained equity without proper ratification
-    if (beneficiaries.length === 1 && currentTotal !== 10000) {
-      const suspect = beneficiaries[0];
-      return {
-        suspectRole: suspect.role,
-        suspectName: suspect.name,
-        confidence: 'HIGH',
-        tamperType: 'UNAUTHORIZED_EQUITY_INFLATION',
-        evidence: `Unilateral split modification detected in Epoch ${epoch.version}. ${suspect.name} gained +${(suspect.gainBps / 100).toFixed(1)}% equity without matching consensus signatures from peer roles.`,
-        verdict: `Financial Anomaly Analysis: Primary Beneficiary Identified. ${suspect.name} gained +${(suspect.gainBps / 100).toFixed(1)}% equity. Note: Beneficiary analysis flags who received surplus allocation, but cryptographic mismatch alone does not prove author identity.`,
-      };
-    }
-
-    // Check if total was maintained but one member's share was inflated at the expense of others without their consent
-    if (beneficiaries.length === 1 && currentTotal === 10000) {
-      const suspect = beneficiaries[0];
-      return {
-        suspectRole: suspect.role,
-        suspectName: suspect.name,
-        confidence: 'HIGH',
-        tamperType: 'UNAUTHORIZED_EQUITY_INFLATION',
-        evidence: `Equity redistribution in Epoch ${epoch.version} favors ${suspect.name} (+${(suspect.gainBps / 100).toFixed(1)}%). The cryptographic block hash does not match the payload certified by counter-parties.`,
-        verdict: `Financial Anomaly Analysis: Primary Beneficiary Identified. Unratified balance shift favors ${suspect.role.toUpperCase()} (+${(suspect.gainBps / 100).toFixed(1)}%). Note: Beneficiary analysis flags who received surplus allocation, but cryptographic mismatch alone does not prove author identity.`,
-      };
-    }
-
-    // If multiple beneficiaries or raw non-equity payload tampering
     return {
       confidence: 'INCONCLUSIVE',
       tamperType: 'UNKNOWN',
-      evidence: `Cryptographic payload mismatch in Epoch ${epoch.version}. Multiple or no clear individual equity beneficiaries detected. No single signature key was exclusively compromised.`,
-      verdict: `Attribution: Inconclusive (Insufficient Cryptographic Proof). Forensic engine refuses to falsely accuse an individual when direct unilateral beneficiary proof is absent.`,
+      evidence: `Epoch ${epoch.version} no longer matches its stored SHA-256 hash. The changed field or actor cannot be recovered from this hash alone.`,
+      verdict: 'Actor unknown. Inspect the saved agreement and restore a trusted copy before using this data.',
     };
   }
 
-  // Predecessor link corruption
   return {
     confidence: 'INCONCLUSIVE',
     tamperType: 'LINK_CORRUPTION',
-    evidence: `Predecessor hash link between epochs was broken or forged in the ledger transport stream. The mutation exists at the chain topology level rather than an individual allocation.`,
-    verdict: `Attribution: Inconclusive. Network or external transport corruption; no specific collaborator signature identified.`,
+    evidence: `Epoch ${epoch.version} has a predecessor hash that does not match the preceding epoch.`,
+    verdict: 'Actor unknown. The link check cannot establish why or by whom the data changed.',
   };
 }
 
 /**
  * Validates the entire hash-chained sequence of epochs.
- * Returns valid status, detailed diagnostics, and forensic attribution ONLY if sure.
+ * Verifies hashes and links in the current in-memory demo state.
  */
 export function verifyEpochChain(epochs: Epoch[]): ChainVerificationResult {
   if (epochs.length === 0) {
@@ -285,7 +219,7 @@ export function verifyEpochChain(epochs: Epoch[]): ChainVerificationResult {
   return {
     isValid: true,
     brokenEpochIndex: null,
-    details: `All ${epochs.length} epochs verified cryptographically. Chain is immutable and valid.`,
+    details: `All ${epochs.length} epoch hashes and links match this browser session. This check does not authenticate approvers or provide durable storage.`,
   };
 }
 

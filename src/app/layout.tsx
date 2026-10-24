@@ -5,7 +5,7 @@ import { IntegrationStatusBar } from '@/components/IntegrationStatusBar';
 export const metadata: Metadata = {
   title: 'FairSplit | PayPal AI Hackathon 2026',
   description:
-    'Fintech web app for collaborative creative teams (Project Aurora). Append-only SHA-256 Trust Ledger, Gemini Socratic AI rev-share negotiation, and PayPal Orders & Payouts APIs.',
+    'FairSplit demo for creative teams: PayPal Sandbox checkout, Gemini-assisted split negotiation, SHA-256 epoch integrity checks, and simulated payout previews.',
 };
 
 export default function RootLayout({

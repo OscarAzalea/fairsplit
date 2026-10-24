@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { X, Sparkles, HelpCircle, CheckCircle2, ArrowRight, Loader2, Scale } from 'lucide-react';
 import { Member, MemberRole, NegotiationResult } from '@/lib/types';
-import { bpsToPercent, TOTAL_BPS } from '@/lib/fairsplit-math';
+import { bpsToPercent } from '@/lib/fairsplit-math';
 
 interface SocraticNegotiationDrawerProps {
   isOpen: boolean;

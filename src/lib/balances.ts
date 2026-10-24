@@ -31,7 +31,7 @@ export function calculateSettledPayouts(
 }
 
 /**
- * Computes the current unpaid reserve from immutable inflows, successful payouts,
+ * Computes the current unpaid reserve from recorded inflows and demo payout deductions,
  * and any reserve reallocations. Reallocations act as snapshots: later inflows and
  * payouts are applied on top, while the original ledger entries remain unchanged.
  */

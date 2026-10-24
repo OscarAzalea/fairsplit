@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { X, ShieldCheck, Sparkles, Loader2, DollarSign, FileCheck, ExternalLink } from 'lucide-react';
-import { BalanceAuditResult, Inflow, Member, MemberRole, PayoutBatch, ReserveReallocation } from '@/lib/types';
-import { centsToDollars } from '@/lib/fairsplit-math';
+import { X, ShieldCheck, Sparkles, Loader2, DollarSign, FileCheck } from 'lucide-react';
+import { BalanceAuditResult, Inflow, Member, PayoutBatch, ReserveReallocation } from '@/lib/types';
+import { bpsToPercent } from '@/lib/fairsplit-math';
 
 interface ExplainBalanceModalProps {
   isOpen: boolean;
@@ -30,9 +30,6 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
     if (!isOpen || !member) return;
 
     let isMounted = true;
-    setIsLoading(true);
-    setError(null);
-
     fetch('/api/explain-balance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -83,7 +80,7 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                AI Transparent Financial Audit & Cryptographic Traceability
+                Ledger math and AI balance explanation
               </p>
             </div>
           </div>
@@ -101,7 +98,7 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
             <div className="py-16 flex flex-col items-center justify-center gap-3 text-slate-400">
               <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
               <p className="text-xs font-medium">
-                Auditing deterministic cents across all epochs & PayPal events...
+                Calculating demo balances across agreement versions and recorded inflows...
               </p>
             </div>
           ) : error ? (
@@ -121,7 +118,7 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
                     <span className="text-[10px] text-slate-500 block">
                       {audit.aiProvider === 'gemini' ? 'Gemini API response' : 'Local heuristic fallback'}
                     </span>
-                    <span className="text-[10px] text-slate-400 block">Verified Pending Balance</span>
+                    <span className="text-[10px] text-slate-400 block">Calculated Demo Pending Balance</span>
                     <span className="text-xl font-extrabold text-emerald-400">
                       {audit.totalPendingDollars}
                     </span>
@@ -150,7 +147,7 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
                       <tr>
                         <th className="p-3">Source Event</th>
                         <th className="p-3">Gross</th>
-                        <th className="p-3">PayPal Fee</th>
+                        <th className="p-3">Fee / Estimate</th>
                         <th className="p-3">Net Revenue</th>
                         <th className="p-3">Original Epoch Share</th>
                         <th className="p-3 text-right">Your Net Share</th>
@@ -165,7 +162,7 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
                           <td className="p-3 text-red-400">-{row.feeDollars}</td>
                           <td className="p-3 text-slate-300">{row.netDollars}</td>
                           <td className="p-3 font-semibold text-blue-300">
-                            {row.epochVersion} ({(row.bps / 100).toFixed(1)}%)
+                            {row.epochVersion} ({bpsToPercent(row.bps)})
                           </td>
                           <td className="p-3 text-right font-extrabold text-emerald-400">
                             +{row.memberShareDollars}
@@ -222,12 +219,12 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300">
                   <DollarSign className="w-4 h-4 text-blue-400" />
-                  <span>Settled PayPal Distributions (Deductions)</span>
+                  <span>Demo Payout Deductions</span>
                 </div>
 
                 {audit.payoutHistory.length === 0 ? (
                   <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 text-center">
-                    No payouts have been executed for this collaborator yet.
+                    No demo payout deductions have been recorded for this collaborator.
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-slate-800">
@@ -235,9 +232,9 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
                       <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 font-medium">
                         <tr>
                           <th className="p-3">Payout Date</th>
-                          <th className="p-3">Batch Idempotency ID</th>
+                          <th className="p-3">Demo Batch Reference</th>
                           <th className="p-3">Status</th>
-                          <th className="p-3 text-right">Settled Amount</th>
+                          <th className="p-3 text-right">Demo Deduction</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/80 bg-slate-900/40">
@@ -266,7 +263,7 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
                 <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <div className="text-xs font-semibold text-slate-200">
-                    Trust Ledger Cryptographic Attestation
+                    Demo Ledger Integrity Note
                   </div>
                   <p className="text-[11px] text-slate-400 leading-relaxed">
                     {audit.integrityAttestation}

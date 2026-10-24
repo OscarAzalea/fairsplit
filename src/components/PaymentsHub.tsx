@@ -4,17 +4,10 @@ import React, { useState } from 'react';
 import {
   CreditCard,
   Send,
-  Sparkles,
-  ArrowRight,
   ShieldCheck,
   CheckCircle2,
-  AlertCircle,
   Loader2,
   Code2,
-  RefreshCw,
-  ExternalLink,
-  Layers,
-  Check,
   ChevronDown,
   ChevronUp,
   Bot,
@@ -59,13 +52,12 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
   payoutRecommendations = [],
   onDismissRecommendation,
   onPreloadBatch,
-  currentMember,
 }) => {
   // Inflow Simulator State
-  const [selectedPreset, setSelectedPreset] = useState<'steam' | 'itch' | 'bandcamp' | 'patreon' | 'custom'>('itch');
-  const [inflowSource, setInflowSource] = useState<string>('Steam Early Access Launch Batch');
-  const [inflowGrossDollars, setInflowGrossDollars] = useState<number>(2500.0);
-  const [inflowSuccessOrderId, setInflowSuccessOrderId] = useState<string | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState<'itch' | 'bandcamp' | 'patreon' | 'custom'>('itch');
+  const [inflowSource, setInflowSource] = useState<string>('itch.io Direct Customer Purchase (Deluxe Edition)');
+  const [inflowGrossDollars, setInflowGrossDollars] = useState<number>(49.99);
+  const [inflowSuccess, setInflowSuccess] = useState<Inflow | null>(null);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState<boolean>(false);
 
 
@@ -84,10 +76,10 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
     reserveReallocations[reserveReallocations.length - 1]?.epochHash === activeEpoch.hash;
 
   // Handle Preset Inflow Selection
-  const handleSelectPreset = (preset: 'steam' | 'itch' | 'bandcamp' | 'patreon' | 'custom') => {
+  const handleSelectPreset = (preset: 'itch' | 'bandcamp' | 'patreon' | 'custom') => {
     setSelectedPreset(preset);
-    setInflowSuccessOrderId(null);
-    if (preset === 'steam') {
+    setInflowSuccess(null);
+    if (preset === 'itch') {
       setInflowSource('itch.io Direct Customer Purchase (Deluxe Edition)');
       setInflowGrossDollars(49.99);
     } else if (preset === 'bandcamp') {
@@ -119,25 +111,25 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
   const payoutItemsToExecute: PayoutItem[] = members
     .filter((m) => selectedMembersForPayout.has(m.id) && memberBalances[m.id] > 0)
     .map((m) => ({
-      senderItemId: `ITEM-AURORA-${m.id.toUpperCase()}-${Date.now().toString().slice(-6)}`,
+      senderItemId: `SIM-ITEM-${activeEpoch.hash.slice(0, 8)}-${payoutBatches.length}-${m.id.toUpperCase()}`,
       memberId: m.id,
       memberName: m.name,
       receiverEmail: m.paypalEmail,
       amountCents: memberBalances[m.id],
       currency: 'USD',
       status: 'PENDING' as PayoutStatus,
-      note: `FairSplit settlement under active Epoch ${activeEpoch.version}${hasActiveReserveReallocation ? ' (includes reserve reallocation)' : ''}`,
+      note: `FairSplit demo distribution under Epoch ${activeEpoch.version}${hasActiveReserveReallocation ? ' (includes reserve reallocation)' : ''}`,
     }));
 
   const totalPayoutBatchCents = payoutItemsToExecute.reduce((sum, item) => sum + item.amountCents, 0);
-  const senderBatchId = `BATCH-AURORA-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const senderBatchId = `SIM-BATCH-${activeEpoch.hash.slice(0, 8)}-${payoutBatches.length}`;
 
   // Raw PayPal Payouts Payload for inspection
   const rawPayloadPreview = {
     sender_batch_header: {
       sender_batch_id: senderBatchId,
-      email_subject: 'Your Project Aurora Rev-Share Payout is Here!',
-      email_message: `FairSplit has verified and distributed your earnings under active epoch ${activeEpoch.version}.`,
+      email_subject: 'Project Aurora proposed rev-share distribution',
+      email_message: `Proposed FairSplit earnings distribution under active epoch ${activeEpoch.version}.`,
       recipient_type: 'EMAIL',
     },
     items: payoutItemsToExecute.map((item) => ({
@@ -152,7 +144,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
     })),
   };
 
-  // Execute PayPal Payouts Batch
+  // Simulate a payout batch. The request preview is never sent to PayPal.
   const handleExecutePayoutBatch = async () => {
     if (payoutItemsToExecute.length === 0) return;
     setIsPayoutProcessing(true);
@@ -168,8 +160,9 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
         }),
       });
 
-      if (!res.ok) throw new Error('Payout batch execution failed');
+      if (!res.ok) throw new Error('Payout batch simulation failed');
       const data = await res.json();
+      if (data.mode !== 'SIMULATED') throw new Error('Expected a simulated payout response.');
 
       const newBatch: PayoutBatch = {
         senderBatchId,
@@ -177,6 +170,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
         timestamp: new Date().toISOString(),
         totalCents: totalPayoutBatchCents,
         status: data.status,
+        mode: 'SIMULATED',
         items: data.items,
         rawPayload: data.rawPayload,
         rawResponse: data.rawResponse,
@@ -186,7 +180,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
       setLastExecutedBatch(newBatch);
       setIsReceiptModalOpen(true);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'PayPal Payouts batch failed');
+      alert(err instanceof Error ? err.message : 'Payout simulation failed');
     } finally {
       setIsPayoutProcessing(false);
     }
@@ -363,7 +357,10 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
               <input
                 type="text"
                 value={inflowSource}
-                onChange={(e) => setInflowSource(e.target.value)}
+                onChange={(e) => {
+                  setInflowSource(e.target.value);
+                  setInflowSuccess(null);
+                }}
                 className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs"
               />
             </div>
@@ -376,7 +373,10 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
                 step="0.01"
                 min="1"
                 value={inflowGrossDollars}
-                onChange={(e) => setInflowGrossDollars(parseFloat(e.target.value) || 0)}
+                onChange={(e) => {
+                  setInflowGrossDollars(parseFloat(e.target.value) || 0);
+                  setInflowSuccess(null);
+                }}
                 className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs font-mono font-bold"
               />
             </div>
@@ -385,9 +385,9 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
           {/* Deterministic Math & Fee Deduction Box */}
           <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-              <span>Deterministic Fee Calculation</span>
+              <span>Illustrative Fee Estimate</span>
               <span className="text-[10px] text-slate-400 font-mono">
-                PayPal Standard: 2.99% + $0.49
+                Demo assumption: 2.99% + $0.49; actual capture values take priority
               </span>
             </div>
 
@@ -399,7 +399,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
                 </span>
               </div>
               <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="text-[10px] text-slate-400 block">PayPal Fee</span>
+                <span className="text-[10px] text-slate-400 block">Estimated Fee</span>
                 <span className="text-sm font-bold text-red-400">
                   -{centsToDollars(previewFeeCents)}
                 </span>
@@ -437,42 +437,41 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
           </div>
 
           {/* Success Banner */}
-          {inflowSuccessOrderId && (
+          {inflowSuccess && (
             <div className="p-3.5 rounded-xl bg-emerald-950/70 border border-emerald-800 text-emerald-200 text-xs flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>
-                  Captured! Order <strong>{inflowSuccessOrderId}</strong> stamped to Epoch{' '}
-                  <strong>{activeEpoch.version}</strong>.
+                  {inflowSuccess.paymentMode === 'PAYPAL_SANDBOX' ? 'Sandbox capture recorded' : 'Demo capture simulated'}: order <strong>{inflowSuccess.paypalOrderId}</strong> linked to{' '}
+                  <strong>{inflowSuccess.epochId.replace('epoch-', '')}</strong>.
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-emerald-400">SHA-256 Anchored</span>
+              <span className="text-[10px] font-mono text-emerald-400">Agreement hash linked in session</span>
             </div>
           )}
 
-          {/* Action Button: Opens Visual Authentic PayPal Checkout Modal */}
+          {/* Checkout mode is shown inside the modal after reading server status. */}
           <button
             onClick={() => setIsCheckoutModalOpen(true)}
             disabled={previewGrossCents <= 0}
-            className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-xl bg-[#FFC439] hover:bg-[#F2BA36] active:bg-[#E5AF30] text-black text-xs font-black shadow-lg shadow-[#FFC439]/20 transition cursor-pointer disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black shadow-lg shadow-blue-600/20 transition cursor-pointer disabled:opacity-50"
           >
-            <span className="text-[#0079C1] italic text-sm">Pay</span>
-            <span className="text-[#00457C] italic text-sm">Pal</span>
-            <span>Launch Smart Checkout ({centsToDollars(previewGrossCents)})</span>
+            <CreditCard className="w-4 h-4" />
+            <span>Open Checkout ({centsToDollars(previewGrossCents)})</span>
           </button>
 
           {/* Render Visual PayPal Checkout Modal */}
-          <PayPalCheckoutModal
-            isOpen={isCheckoutModalOpen}
+          {isCheckoutModalOpen && <PayPalCheckoutModal
+            isOpen
             onClose={() => setIsCheckoutModalOpen(false)}
             activeEpoch={activeEpoch}
             source={inflowSource}
             grossDollars={inflowGrossDollars}
             onSuccess={(newInflow) => {
               onNewInflow(newInflow);
-              setInflowSuccessOrderId(newInflow.paypalOrderId);
+              setInflowSuccess(newInflow);
             }}
-          />
+          />}
         </div>
 
 
@@ -542,7 +541,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
                         {centsToDollars(balance)}
                       </div>
                       <div className="text-[9px] font-mono text-slate-500">
-                        ITEM-{member.id.toUpperCase()}-IDEMPOTENT
+                        DEMO ITEM · {member.id.toUpperCase()}
                       </div>
                     </div>
                   </div>
@@ -554,7 +553,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
           {/* Batch Metadata & Idempotency Key Info */}
           <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5 text-xs">
             <div className="flex justify-between text-slate-400">
-              <span>Idempotency Batch Header:</span>
+              <span>Demo Batch Reference:</span>
               <span className="font-mono text-slate-200">{senderBatchId}</span>
             </div>
             <div className="flex justify-between text-slate-400">
@@ -562,7 +561,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
               <span className="text-slate-200 font-bold">{payoutItemsToExecute.length} members</span>
             </div>
             <div className="flex justify-between text-slate-400">
-              <span>Total Settlement:</span>
+              <span>Amount to Simulate:</span>
               <span className="text-emerald-400 font-extrabold">
                 {centsToDollars(totalPayoutBatchCents)}
               </span>
@@ -595,11 +594,11 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
             <div className="p-3.5 rounded-xl bg-emerald-950/70 border border-emerald-800 text-emerald-200 text-xs space-y-2">
               <div className="flex items-center gap-2 font-bold">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>PayPal Batch {lastExecutedBatch.payoutBatchId} Processed!</span>
+                <span>Demo batch {lastExecutedBatch.payoutBatchId} simulated</span>
               </div>
               <p className="text-[11px] text-emerald-300/80">
-                Successfully disbursed {centsToDollars(lastExecutedBatch.totalCents)} across{' '}
-                {lastExecutedBatch.items.length} collaborators. Idempotent balances cleared.
+                The demo ledger deducted {centsToDollars(lastExecutedBatch.totalCents)} across{' '}
+                {lastExecutedBatch.items.length} collaborators. No money was sent.
               </p>
               <button
                 type="button"
@@ -607,7 +606,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-sm cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>View Demo Settlement Receipt (PDF)</span>
+                <span>View Simulation Report (PDF)</span>
               </button>
             </div>
           )}
@@ -635,7 +634,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
         </div>
       </div>
 
-      {/* Official PayPal Settlement Receipt Modal */}
+      {/* Payout simulation report */}
       <BatchPayoutReceiptModal
         isOpen={isReceiptModalOpen}
         onClose={() => setIsReceiptModalOpen(false)}

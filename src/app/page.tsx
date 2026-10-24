@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Header } from '@/components/Header';
 import { AgreementStudio } from '@/components/AgreementStudio';
 import { TrustLedger } from '@/components/TrustLedger';
@@ -13,7 +13,7 @@ import { Epoch, Inflow, PayoutBatch, PayoutRecommendation, MemberRole, ReserveRe
 import { verifyEpochChain } from '@/lib/crypto';
 import { dollarsToCents, calculatePayPalFeeCents, allocateCentsFairly } from '@/lib/fairsplit-math';
 import { calculateMemberBalances, isSimulatedInflow, MEMBER_ROLES } from '@/lib/balances';
-import { ShieldCheck, Sparkles, Layers, DollarSign, Wallet } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 
 export default function FairSplitApp() {
   const [epochs, setEpochs] = useState<Epoch[]>([GENESIS_EPOCH]);
@@ -24,7 +24,7 @@ export default function FairSplitApp() {
   const [activeTab, setActiveTab] = useState<'studio' | 'ledger' | 'balances' | 'payments'>('studio');
   const [isAdvisorOpen, setIsAdvisorOpen] = useState<boolean>(false);
 
-  // Authenticated Session Persona (defaults to Elena Vance, Artist)
+  // Demo session persona (defaults to Elena Vance, Artist)
   const [currentMemberId, setCurrentMemberId] = useState<MemberRole>('artist');
   const currentMember = MEMBERS.find((m) => m.id === currentMemberId) || MEMBERS[1];
 
@@ -41,19 +41,7 @@ export default function FairSplitApp() {
 
 
   // AI Payout Recommendations Queue (Peer Liquidity Mediation)
-  const [payoutRecommendations, setPayoutRecommendations] = useState<PayoutRecommendation[]>([
-    {
-      id: 'REC-AURORA-01',
-      createdAt: new Date().toISOString(),
-      requesterName: 'Anonymous Collaborator',
-      isAnonymous: true,
-      reasonOrNeed: 'Upcoming studio milestone & personal living liquidity review',
-      recommendedDate: 'Friday, Nov 1, 2026',
-      recommendedAmountCents: 268158,
-      feeOptimizationNote: 'Recommends scheduling the batch release on Friday, Nov 1 to clear pending reserves while keeping relative PayPal fee drag under 1.1%.',
-      status: 'PENDING_REVIEW',
-    },
-  ]);
+  const [payoutRecommendations, setPayoutRecommendations] = useState<PayoutRecommendation[]>([]);
 
   const handlePushRecommendation = (rec: PayoutRecommendation) => {
     setPayoutRecommendations((prev) => [rec, ...prev.filter((r) => r.id !== rec.id)]);
@@ -77,31 +65,42 @@ export default function FairSplitApp() {
     });
   });
 
-  // Recalculate the unpaid pool under a signed epoch while keeping the source
-  // inflows and completed payout records intact.
-  const reallocatePendingReservesForEpoch = (epoch: Epoch) => {
-    const previousPendingCents = calculateMemberBalances(inflows, payoutBatches, reserveReallocations);
+  // Build an auditable snapshot from the exact inputs used for the calculation.
+  const createReserveSnapshot = (
+    epoch: Epoch,
+    snapshotInflows: Inflow[],
+    snapshotPayoutBatches: PayoutBatch[],
+    previousSnapshots: ReserveReallocation[]
+  ): ReserveReallocation | null => {
+    const previousPendingCents = calculateMemberBalances(
+      snapshotInflows,
+      snapshotPayoutBatches,
+      previousSnapshots
+    );
     const totalUnclaimedCents = MEMBER_ROLES.reduce(
       (sum, role) => sum + previousPendingCents[role],
       0
     );
 
-    if (totalUnclaimedCents <= 0) return;
+    if (totalUnclaimedCents <= 0) return null;
 
-    const reallocation: ReserveReallocation = {
-      id: `RESERVE-${epoch.epochId}-${Date.now()}`,
+    return {
+      id: `RESERVE-${epoch.epochId}-${crypto.randomUUID()}`,
       createdAt: new Date().toISOString(),
       epochId: epoch.epochId,
       epochHash: epoch.hash,
       previousPendingCents,
       allocations: allocateCentsFairly(totalUnclaimedCents, epoch.splits),
-      includedInflowIds: inflows.map((inflow) => inflow.id),
-      includedPayoutItemIds: payoutBatches.flatMap((batch) =>
+      includedInflowIds: snapshotInflows.map((inflow) => inflow.id),
+      includedPayoutItemIds: snapshotPayoutBatches.flatMap((batch) =>
         batch.items.filter((item) => item.status === 'SUCCESS').map((item) => item.senderItemId)
       ),
     };
+  };
 
-    setReserveReallocations((previous) => [...previous, reallocation]);
+  const reallocatePendingReservesForEpoch = (epoch: Epoch) => {
+    const snapshot = createReserveSnapshot(epoch, inflows, payoutBatches, reserveReallocations);
+    if (snapshot) setReserveReallocations((previous) => [...previous, snapshot]);
   };
 
   // Ratify new epoch
@@ -119,7 +118,10 @@ export default function FairSplitApp() {
 
   // Capture new inflow
   const handleNewInflow = (newInflow: Inflow) => {
-    setInflows((prev) => [newInflow, ...prev]);
+    setInflows((prev) => prev.some((inflow) =>
+      inflow.paypalOrderId === newInflow.paypalOrderId ||
+      (newInflow.paypalCaptureId && inflow.paypalCaptureId === newInflow.paypalCaptureId)
+    ) ? prev : [newInflow, ...prev]);
   };
 
   // Quick Inflow Simulator under active epoch
@@ -129,7 +131,7 @@ export default function FairSplitApp() {
     const netCents = Math.max(0, grossCents - feeCents);
     const allocations = allocateCentsFairly(netCents, activeEpoch.splits);
     const now = new Date().toISOString();
-    const simulationId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const simulationId = crypto.randomUUID();
     const newInflow: Inflow = {
       id: `SIM-INF-${simulationId}`,
       source: `Steam Sale Batch (${activeEpoch.version} Inflow)`,
@@ -138,9 +140,10 @@ export default function FairSplitApp() {
       netCents,
       currency: 'USD',
       timestamp: now,
-      paypalOrderId: `ORDER-${simulationId}`,
+      paypalOrderId: `SIM-ORDER-${simulationId}`,
       paymentMode: 'SIMULATED',
       paymentStatus: 'SIMULATED',
+      feeIsEstimated: true,
       epochId: activeEpoch.epochId,
       epochHash: activeEpoch.hash,
       allocations,
@@ -148,19 +151,19 @@ export default function FairSplitApp() {
     setInflows((prev) => [newInflow, ...prev]);
   };
 
-  const handleClearSimulatedInflows = () => {
-    const simulatedIds = new Set(inflows.filter(isSimulatedInflow).map((inflow) => inflow.id));
-    if (simulatedIds.size === 0) return;
+  const handleClearSimulatedActivity = () => {
+    const retainedInflows = inflows.filter((inflow) => !isSimulatedInflow(inflow));
+    const retainedPayoutBatches = payoutBatches.filter((batch) => batch.mode !== 'SIMULATED');
+    if (retainedInflows.length === inflows.length && retainedPayoutBatches.length === payoutBatches.length) return;
 
-    setInflows((prev) => prev.filter((inflow) => !simulatedIds.has(inflow.id)));
-
-    // Keep the latest reserve snapshot that predates simulated inflows, if one exists.
-    let lastValidReallocationIndex = -1;
-    reserveReallocations.forEach((reallocation, index) => {
-      const includesSimulation = reallocation.includedInflowIds.some((id) => simulatedIds.has(id));
-      if (!includesSimulation) lastValidReallocationIndex = index;
-    });
-    setReserveReallocations((prev) => prev.slice(0, lastValidReallocationIndex + 1));
+    // The old snapshots may include removed demo money. Rebuild the unpaid
+    // reserve from the remaining records using the currently signed split.
+    const snapshot = activeEpoch.hash === GENESIS_EPOCH.hash
+      ? null
+      : createReserveSnapshot(activeEpoch, retainedInflows, retainedPayoutBatches, []);
+    setInflows(retainedInflows);
+    setPayoutBatches(retainedPayoutBatches);
+    setReserveReallocations(snapshot ? [snapshot] : []);
   };
 
   // Fallback for pending reserves that predate this session's ratification.
@@ -293,7 +296,7 @@ export default function FairSplitApp() {
             onNavigateToPayouts={() => setActiveTab('payments')}
             currentMember={currentMember}
             onSimulateQuickInflow={handleSimulateQuickInflow}
-            onClearSimulatedInflows={handleClearSimulatedInflows}
+            onClearSimulatedActivity={handleClearSimulatedActivity}
           />
         )}
 

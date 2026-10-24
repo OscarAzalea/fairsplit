@@ -2,26 +2,17 @@
 
 import React, { useState } from 'react';
 import {
-  Wallet,
   Sparkles,
   ArrowUpRight,
-  ShieldCheck,
   CheckCircle2,
-  DollarSign,
-  HelpCircle,
-  ExternalLink,
   Coins,
   RefreshCw,
-  TrendingUp,
   History,
   ChevronDown,
   ChevronUp,
   FileText,
-  Check,
-  Layers,
-  ArrowRight,
 } from 'lucide-react';
-import { Epoch, Inflow, Member, MemberRole, PayoutBatch, ReserveReallocation } from '@/lib/types';
+import { Epoch, Inflow, Member, PayoutBatch, ReserveReallocation } from '@/lib/types';
 import { allocateCentsFairly, bpsToPercent, calculatePayPalFeeCents, centsToDollars } from '@/lib/fairsplit-math';
 import { calculateMemberBalances, calculateSettledPayouts, isSimulatedInflow } from '@/lib/balances';
 import { ExplainBalanceModal } from './ExplainBalanceModal';
@@ -34,7 +25,7 @@ interface CollaboratorBalancesProps {
   payoutBatches: PayoutBatch[];
   reserveReallocations: ReserveReallocation[];
   onApplyActiveEpochToReserves: () => void;
-  onClearSimulatedInflows: () => void;
+  onClearSimulatedActivity: () => void;
   onNavigateToPayouts: () => void;
   currentMember?: Member;
   onSimulateQuickInflow?: (grossDollars?: number) => void;
@@ -47,7 +38,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
   payoutBatches,
   reserveReallocations,
   onApplyActiveEpochToReserves,
-  onClearSimulatedInflows,
+  onClearSimulatedActivity,
   onNavigateToPayouts,
   currentMember,
   onSimulateQuickInflow,
@@ -67,6 +58,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
   const paidByMember = calculateSettledPayouts(payoutBatches);
   const latestReallocation = reserveReallocations[reserveReallocations.length - 1];
   const simulatedInflowCount = inflows.filter(isSimulatedInflow).length;
+  const simulatedPayoutCount = payoutBatches.filter((batch) => batch.mode === 'SIMULATED').length;
 
   const memberBalances = members.map((member) => {
     const totalPaidOutCents = paidByMember[member.id];
@@ -122,7 +114,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
-              Deterministic Settlement
+              Deterministic Demo Balances
             </span>
             <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-800 text-slate-300 border border-slate-700">
               Active Epoch {activeEpoch.version}
@@ -133,7 +125,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
             Each collaborator&apos;s balance is derived deterministically down to the exact integer cent.
-            Click &ldquo;Explain My Balance&rdquo; for an instant Gemini-powered audit.
+            Click &ldquo;Explain My Balance&rdquo; for a ledger breakdown and an AI-assisted explanation when available.
           </p>
         </div>
 
@@ -151,7 +143,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
             onClick={onNavigateToPayouts}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-600/30 transition cursor-pointer"
           >
-            <span>Execute Batch Payout</span>
+            <span>Preview Demo Payout</span>
             <ArrowUpRight className="w-4 h-4" />
           </button>
         </div>
@@ -175,7 +167,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
               </div>
             </div>
             <p className="text-[11px] text-slate-400">
-              Ratifying a new split recalculates the unpaid pool under those percentages. Historical inflows and completed payouts remain in the ledger.
+              Demo approval of a new split recalculates the unpaid pool under those percentages. Historical inflow and payout sample records remain in the ledger.
             </p>
           </div>
         </div>
@@ -204,24 +196,24 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
                 triggerAlert(`Applied Epoch ${activeEpoch.version} to the unclaimed reserve pool.`);
               }}
               className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition cursor-pointer"
-              title="Redistribute only unpaid balances under the active epoch; preserve historical inflows and completed payouts"
+              title="Redistribute only unpaid balances under the active epoch; preserve historical inflow and demo payout records"
             >
               <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
               <span>Apply {activeEpoch.version} to Unclaimed Reserves</span>
             </button>
           )}
 
-          {simulatedInflowCount > 0 && (
+          {(simulatedInflowCount > 0 || simulatedPayoutCount > 0) && (
             <button
               type="button"
               onClick={() => {
-                onClearSimulatedInflows();
-                triggerAlert(`Cleared ${simulatedInflowCount} demo inflow${simulatedInflowCount === 1 ? '' : 's'}. Original inflows and completed payouts were kept.`);
+                onClearSimulatedActivity();
+                triggerAlert('Cleared demo inflows and payout simulations. The signed split still applies to the remaining reserve.');
               }}
               className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-amber-200 border border-amber-900/70 text-xs font-semibold transition cursor-pointer"
-              title="Remove demo inflows and any reserve snapshots that included them. Original inflows and completed payouts stay unchanged."
+              title="Remove generated demo inflows and simulated payouts while retaining seed data and Sandbox captures"
             >
-              Clear {simulatedInflowCount} demo inflow{simulatedInflowCount === 1 ? '' : 's'}
+              Clear Demo Activity
             </button>
           )}
         </div>
@@ -239,11 +231,11 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
                 return `${memberName}: ${centsToDollars(allocation.cents)}`;
               }).join(' · ')}
             </p>
-            <p>Historical inflow allocations and completed payouts stay unchanged.</p>
+            <p>Historical inflow allocations and demo payout records stay unchanged.</p>
           </div>
         ) : latestReallocation ? (
           <span>
-            Unclaimed reserves were last reallocated under Epoch {latestReallocation.epochId.replace('epoch-', '')}. Historical inflow allocations and completed payouts remain unchanged.
+            Unclaimed reserves were last reallocated under Epoch {latestReallocation.epochId.replace('epoch-', '')}. Historical inflow allocations and demo payout records remain unchanged.
           </span>
         ) : (
           <span>Each inflow keeps the split from the signed epoch active when it arrived.</span>
@@ -296,7 +288,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
                 {/* Pending Balance Spotlight */}
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-center space-y-1">
                   <span className="text-[10px] uppercase font-bold text-slate-400">
-                    Unclaimed Pending Balance
+                    Demo Pending Balance
                   </span>
                   <div className="text-2xl font-black text-emerald-400 tracking-tight">
                     {centsToDollars(pendingBalanceCents)}
@@ -323,13 +315,13 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-400">
-                    <span>Settled Payouts:</span>
+                    <span>Demo Payout Deductions:</span>
                     <span className="text-blue-400 font-medium">
                       -{centsToDollars(totalPaidOutCents)}
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-400">
-                    <span>Inflows Captured:</span>
+                    <span>Recorded Inflows:</span>
                     <span className="text-slate-200 font-medium">{inflowCount} events</span>
                   </div>
                   <div className="pt-2 border-t border-slate-800/80 flex justify-between text-[11px] text-slate-400">
@@ -357,7 +349,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
                     className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-emerald-300 text-[11px] font-medium transition border border-slate-800 hover:border-emerald-800/60 cursor-pointer"
                   >
                     <FileText className="w-3 h-3 text-emerald-400" />
-                    <span>Export Audit Certificate</span>
+                    <span>Export Demo Balance Statement</span>
                   </button>
                 </div>
               </div>
@@ -374,13 +366,13 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                Inflow Settlement & Epoch Attribution Ledger
+                Inflow Allocation & Epoch Ledger
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-950 text-blue-300 border border-blue-800">
                   {inflows.length} Events
                 </span>
               </h3>
               <p className="text-[11px] text-slate-400">
-                Transparent cryptographic tie connecting every PayPal customer dollar to the governing epoch split
+                Each sample, simulated, or Sandbox inflow records the agreement in effect when it was captured
               </p>
             </div>
           </div>
@@ -429,7 +421,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
                       </td>
                       <td className="py-3 px-3 font-mono">
                         <div className="text-slate-200">{centsToDollars(inf.grossCents)}</div>
-                        <div className="text-[10px] text-slate-500">-{centsToDollars(inf.feeCents)} fee</div>
+                        <div className="text-[10px] text-slate-500">-{centsToDollars(inf.feeCents)} {inf.feeIsEstimated || !inf.paymentMode ? 'estimated fee' : 'fee'}</div>
                       </td>
                       <td className="py-3 px-3 font-mono font-bold text-emerald-400">
                         {centsToDollars(inf.netCents)}
@@ -453,14 +445,14 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
       </div>
 
       {/* AI Explain Balance Modal */}
-      <ExplainBalanceModal
-        isOpen={selectedAuditMember !== null}
+      {selectedAuditMember && <ExplainBalanceModal
+        isOpen
         onClose={() => setSelectedAuditMember(null)}
         member={selectedAuditMember}
         inflows={inflows}
         payoutBatches={payoutBatches}
         reserveReallocations={reserveReallocations}
-      />
+      />}
 
       {/* Cryptographic Payout Certificate Modal */}
       <PayoutCertificateModal

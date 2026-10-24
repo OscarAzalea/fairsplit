@@ -1,4 +1,4 @@
-import { Epoch, Inflow, Member, PayoutBatch } from './types';
+import type { Epoch, Inflow, Member, PayoutBatch } from './types';
 import { computeEpochHash, generateMemberSignatureHash } from './crypto';
 import { allocateCentsFairly, calculatePayPalFeeCents, dollarsToCents } from './fairsplit-math';
 
@@ -99,6 +99,9 @@ function createSeedInflow(
     currency: 'USD',
     timestamp,
     paypalOrderId,
+    paymentMode: 'SEED',
+    paymentStatus: 'SAMPLE',
+    feeIsEstimated: true,
     epochId: epoch.epochId,
     epochHash: epoch.hash,
     allocations,
@@ -111,7 +114,7 @@ export const INITIAL_INFLOWS: Inflow[] = [
     'itch.io Direct Launch Batch (Digital Deluxe)',
     2500.0,
     '2026-10-15T18:30:00.000Z',
-    'ORD-PAYPAL-STEAM-9182',
+    'SEED-ORDER-STEAM-9182',
     GENESIS_EPOCH
   ),
   createSeedInflow(
@@ -119,7 +122,7 @@ export const INITIAL_INFLOWS: Inflow[] = [
     'Bandcamp Deluxe OST & Artbook Bundle',
     450.0,
     '2026-10-18T14:15:00.000Z',
-    'ORD-PAYPAL-BC-7721',
+    'SEED-ORDER-BC-7721',
     GENESIS_EPOCH
   ),
   createSeedInflow(
@@ -127,7 +130,7 @@ export const INITIAL_INFLOWS: Inflow[] = [
     'itch.io Creator Spotlight Supporter Pass',
     125.0,
     '2026-10-21T09:45:00.000Z',
-    'ORD-PAYPAL-ITCH-3304',
+    'SEED-ORDER-ITCH-3304',
     GENESIS_EPOCH
   ),
 ];
@@ -135,14 +138,15 @@ export const INITIAL_INFLOWS: Inflow[] = [
 export const INITIAL_PAYOUT_BATCHES: PayoutBatch[] = [
   {
     senderBatchId: 'BATCH-AURORA-20261019-1001',
-    payoutBatchId: 'PAYPAL-BATCH-88291034',
+    payoutBatchId: 'SEED-BATCH-88291034',
     timestamp: '2026-10-19T16:00:00.000Z',
     totalCents: 30000, // $300 total seed distribution
     status: 'SUCCESS',
+    mode: 'SEED',
     items: [
       {
         senderItemId: 'ITEM-AURORA-DEV-001',
-        payoutItemId: 'P-ITEM-9911',
+        payoutItemId: 'SEED-ITEM-9911',
         memberId: 'dev',
         memberName: 'Alex Mercer',
         receiverEmail: 'alex.dev@auroragame.studio',
@@ -154,7 +158,7 @@ export const INITIAL_PAYOUT_BATCHES: PayoutBatch[] = [
       },
       {
         senderItemId: 'ITEM-AURORA-ART-001',
-        payoutItemId: 'P-ITEM-9912',
+        payoutItemId: 'SEED-ITEM-9912',
         memberId: 'artist',
         memberName: 'Elena Vance',
         receiverEmail: 'elena.art@auroragame.studio',
@@ -166,7 +170,7 @@ export const INITIAL_PAYOUT_BATCHES: PayoutBatch[] = [
       },
       {
         senderItemId: 'ITEM-AURORA-WRT-001',
-        payoutItemId: 'P-ITEM-9913',
+        payoutItemId: 'SEED-ITEM-9913',
         memberId: 'writer',
         memberName: 'Marcus Chen',
         receiverEmail: 'marcus.writer@auroragame.studio',
@@ -178,7 +182,7 @@ export const INITIAL_PAYOUT_BATCHES: PayoutBatch[] = [
       },
       {
         senderItemId: 'ITEM-AURORA-CMP-001',
-        payoutItemId: 'P-ITEM-9914',
+        payoutItemId: 'SEED-ITEM-9914',
         memberId: 'composer',
         memberName: 'Lyra Song',
         receiverEmail: 'lyra.music@auroragame.studio',

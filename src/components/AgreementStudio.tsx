@@ -1,17 +1,13 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Lock,
   Unlock,
   Sparkles,
   CheckCircle,
   FileSignature,
-  Layers,
-  ArrowRight,
   Shield,
-  HelpCircle,
-  AlertCircle,
   Check,
   Info,
   Plus,
@@ -59,21 +55,6 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
   const [lockedMembers, setLockedMembers] = useState<Set<MemberRole>>(new Set());
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const proposalRef = useRef<HTMLDivElement>(null);
-
-  // Synchronize splits when activeEpoch updates
-  useEffect(() => {
-    const initial: Record<MemberRole, number> = { dev: 4000, artist: 3000, writer: 2000, composer: 1000 };
-    activeEpoch.splits.forEach((s) => {
-      initial[s.memberId] = s.bps;
-    });
-    setSplits(initial);
-    setPercentageDrafts({
-      dev: formatPercentageInput(initial.dev),
-      artist: formatPercentageInput(initial.artist),
-      writer: formatPercentageInput(initial.writer),
-      composer: formatPercentageInput(initial.composer),
-    });
-  }, [activeEpoch]);
 
   // Ratification flow state
   const [isProposing, setIsProposing] = useState<boolean>(false);
@@ -300,6 +281,10 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
     if (!splitsAreValid) return;
     const allSigned = members.every((m) => sigs[m.id] !== null);
     if (!allSigned) return;
+    if (epochs.some((epoch) => epoch.version === proposedVersion)) {
+      alert(`Epoch ${proposedVersion} already exists. Choose a new version before ratifying.`);
+      return;
+    }
 
     const now = new Date().toISOString();
     const newSplitsArray = members.map((m) => ({
@@ -333,6 +318,8 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
       onNewEpochRatified(newEpoch);
       setRatifiedSuccess(true);
       setIsProposing(false);
+      const nextMajor = Math.max(1, ...epochs.map((epoch) => Number(/^v(\d+)\./.exec(epoch.version)?.[1] ?? 0)), Number(/^v(\d+)\./.exec(proposedVersion)?.[1] ?? 0)) + 1;
+      setProposedVersion(`v${nextMajor}.0`);
     }, 400);
   };
 
@@ -355,8 +342,8 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
             Collaborative Equity & Ratification Engine
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
-            Adjust splits dynamically with zero rounding loss. Run Gemini Socratic AI mediation to
-            resolve trade-offs, then lock consensus via cryptographic multi-party ratification.
+            Adjust splits to the exact basis point. Use AI to discuss trade-offs, then record
+            four demo approvals and the new split in the local epoch chain.
           </p>
         </div>
 
@@ -391,8 +378,8 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
           <div className="flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
             <span>
-              <strong>Ratification Complete!</strong> Epoch {activeEpoch.version} has been securely
-              anchored to the Trust Ledger with 4/4 digital signatures. Any unpaid reserve now follows the new split.
+              <strong>Agreement recorded.</strong> Epoch {activeEpoch.version} is in the local SHA-256
+              chain with four demo approvals. The unpaid reserve now follows the new split.
             </span>
           </div>
           <button
@@ -710,7 +697,7 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                All 4 members must cryptographically sign to lock and activate this epoch.
+                Fill all four demo approval slots to activate this epoch. This screen does not verify member identity.
               </p>
             </div>
 
@@ -757,10 +744,10 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
             <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
             <div className="space-y-1">
               <p>
-                <strong className="text-slate-200">Production Governance Architecture:</strong> In production, each collaborator authenticates asynchronously via their personal PayPal OAuth session or cryptographic hardware key. A single user cannot approve on behalf of peers.
+                <strong className="text-slate-200">Demo approval model:</strong> These approval controls simulate team consent in this browser session. They are not authenticated signatures.
               </p>
               <p className="text-slate-500">
-                For evaluator convenience in this demo, you can click each collaborator card below to sign individually, or use the sandbox helper to simulate peer approvals.
+                Click each collaborator card or use the sandbox helper to fill the four approval slots.
               </p>
             </div>
           </div>
@@ -845,7 +832,7 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
                     <div className="space-y-1 pt-1 border-t border-emerald-900/60">
                       <div className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
                         <Shield className="w-3 h-3" />
-                        <span>Signed Cryptographically</span>
+                        <span>Demo Approval Recorded</span>
                       </div>
                       <div className="font-mono text-[9px] text-slate-400 truncate">
                         {sig.signatureHash.slice(0, 16)}...

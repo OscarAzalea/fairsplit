@@ -41,6 +41,7 @@ interface CaptureApiResponse {
           currency_code?: string;
         };
         seller_receivable_breakdown?: {
+          gross_amount?: { value?: string; currency_code?: string };
           paypal_fee?: { value?: string; currency_code?: string };
           net_amount?: { value?: string; currency_code?: string };
         };
@@ -88,6 +89,14 @@ async function responseError(response: Response, fallback: string): Promise<Erro
   return new Error(fallback);
 }
 
+function readUsdCents(value: { value?: string; currency_code?: string } | undefined): number | null {
+  if (!value || value.currency_code !== 'USD' || typeof value.value !== 'string') return null;
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value.value)) return null;
+  const [dollars, fraction = ''] = value.value.split('.');
+  const cents = Number(dollars) * 100 + Number(fraction.padEnd(2, '0'));
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
 export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
   isOpen,
   onClose,
@@ -111,7 +120,9 @@ export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
   const paypalButtonsRef = useRef<PayPalButtonsInstance | null>(null);
 
   const contextRef = useRef({ activeEpoch, source, grossDollars, onSuccess });
-  contextRef.current = { activeEpoch, source, grossDollars, onSuccess };
+  useEffect(() => {
+    contextRef.current = { activeEpoch, source, grossDollars, onSuccess };
+  }, [activeEpoch, source, grossDollars, onSuccess]);
 
   const grossCents = dollarsToCents(grossDollars);
   const estimatedFeeCents = calculatePayPalFeeCents(grossCents);
@@ -121,13 +132,6 @@ export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
     if (!isOpen) return;
 
     let cancelled = false;
-    setStage('checkout');
-    setOrderResult(null);
-    setErrorMessage(null);
-    setIntegrationError(null);
-    setIntegration(null);
-    setPaypalSdkReady(false);
-
     fetch('/api/integration-status', { cache: 'no-store' })
       .then(async (response) => {
         if (!response.ok) throw new Error('Could not load payment integration status.');
@@ -157,29 +161,33 @@ export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
     if (!captureData.mode) {
       throw new Error('The server did not confirm which payment path completed.');
     }
+    if (captureData.id !== orderId) {
+      throw new Error('The capture response does not match the approved order.');
+    }
     if (integration?.mode === 'sandbox' && captureData.mode !== 'sandbox') {
       throw new Error('The capture response did not come from PayPal Sandbox.');
     }
 
     const capture = captureData.purchase_units?.[0]?.payments?.captures?.[0];
-    const grossValue = Number(capture?.amount?.value);
-    if (!Number.isFinite(grossValue) || grossValue <= 0) {
-      throw new Error('The capture response did not include a valid settled amount.');
+    const settledGrossCents = readUsdCents(capture?.amount);
+    if (!capture?.id || capture.status !== 'COMPLETED' || settledGrossCents === null || settledGrossCents <= 0) {
+      throw new Error('PayPal did not confirm a completed USD capture with an ID and amount.');
     }
 
-    const settledGrossCents = dollarsToCents(grossValue);
-    const reportedFee = capture?.seller_receivable_breakdown?.paypal_fee?.value;
-    const reportedNet = capture?.seller_receivable_breakdown?.net_amount?.value;
-    const feeCents =
-      reportedFee !== undefined && Number.isFinite(Number(reportedFee))
-        ? dollarsToCents(Number(reportedFee))
-        : calculatePayPalFeeCents(settledGrossCents);
-    const netCents =
-      reportedNet !== undefined && Number.isFinite(Number(reportedNet))
-        ? dollarsToCents(Number(reportedNet))
-        : Math.max(0, settledGrossCents - feeCents);
+    const breakdown = capture.seller_receivable_breakdown;
+    const reportedNet = readUsdCents(breakdown?.net_amount);
+    const reportedFee = readUsdCents(breakdown?.paypal_fee);
+    if ((breakdown?.net_amount && reportedNet === null) || (breakdown?.paypal_fee && reportedFee === null)) {
+      throw new Error('PayPal returned a processing breakdown in an unsupported currency or format.');
+    }
+    const feeIsEstimated = reportedNet === null && reportedFee === null;
+    const netCents = reportedNet ?? Math.max(0, settledGrossCents - (reportedFee ?? calculatePayPalFeeCents(settledGrossCents)));
+    const feeCents = settledGrossCents - netCents;
+    if (netCents < 0 || feeCents < 0) {
+      throw new Error('The PayPal capture breakdown is inconsistent with its gross amount.');
+    }
     const inflow: Inflow = {
-      id: 'INF-' + Math.floor(100 + Math.random() * 900),
+      id: `INF-${capture.id}`,
       source: context.source,
       grossCents: settledGrossCents,
       feeCents,
@@ -187,9 +195,10 @@ export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
       currency: 'USD',
       timestamp: new Date().toISOString(),
       paypalOrderId: orderId,
-      paypalCaptureId: capture?.id,
+      paypalCaptureId: capture.id,
       paymentMode: captureData.mode === 'sandbox' ? 'PAYPAL_SANDBOX' : 'SIMULATED',
       paymentStatus: captureData.mode === 'sandbox' ? 'COMPLETED' : 'SIMULATED',
+      feeIsEstimated,
       epochId: context.activeEpoch.epochId,
       epochHash: context.activeEpoch.hash,
       allocations: allocateCentsFairly(netCents, context.activeEpoch.splits),
@@ -206,7 +215,9 @@ export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
   };
 
   const finishCaptureRef = useRef(finishCapture);
-  finishCaptureRef.current = finishCapture;
+  useEffect(() => {
+    finishCaptureRef.current = finishCapture;
+  });
 
   useEffect(() => {
     if (
@@ -219,6 +230,7 @@ export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
       return;
     }
 
+    const buttonContainer = paypalButtonContainerRef.current;
     const buttons = window.paypal.Buttons({
       createOrder: async () => {
         const context = contextRef.current;
@@ -269,7 +281,7 @@ export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
     });
 
     paypalButtonsRef.current = buttons;
-    buttons.render(paypalButtonContainerRef.current).catch((error: unknown) => {
+    buttons.render(buttonContainer).catch((error: unknown) => {
       setErrorMessage(
         error instanceof Error ? error.message : 'PayPal Checkout buttons could not load.'
       );
@@ -277,9 +289,7 @@ export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
 
     return () => {
       paypalButtonsRef.current = null;
-      if (paypalButtonContainerRef.current) {
-        paypalButtonContainerRef.current.innerHTML = '';
-      }
+      buttonContainer.innerHTML = '';
       void buttons.close().catch(() => undefined);
     };
   }, [isOpen, integration, paypalSdkReady]);
@@ -457,11 +467,9 @@ export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
                 <button
                   type="button"
                   onClick={handleSimulatedCheckout}
-                  className="w-full h-12 rounded-full bg-[#FFC439] hover:bg-[#F2BA36] text-black font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#FFC439]/20 transition"
+                  className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition"
                 >
-                  <span className="text-[#0079C1] italic text-base">Pay</span>
-                  <span className="text-[#00457C] italic text-base">Pal</span>
-                  <span className="ml-1">Run demo capture ({centsToDollars(grossCents)})</span>
+                  <span>Run demo capture ({centsToDollars(grossCents)})</span>
                 </button>
               )}
 
@@ -523,7 +531,7 @@ export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
 
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
                 <div className="flex justify-between text-slate-400">
-                  <span>PayPal order ID:</span>
+                  <span>{orderResult.mode === 'sandbox' ? 'PayPal order ID:' : 'Demo order ID:'}</span>
                   <span className="font-mono text-blue-400 font-bold">{orderResult.orderId}</span>
                 </div>
                 <div className="flex justify-between text-slate-400">
@@ -531,25 +539,25 @@ export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
                   <span className="font-mono text-slate-300">{orderResult.captureId}</span>
                 </div>
                 <div className="flex justify-between text-slate-400">
-                  <span>Gross settled:</span>
+                  <span>{orderResult.mode === 'sandbox' ? 'Gross captured:' : 'Demo gross recorded:'}</span>
                   <span className="text-white font-bold">
                     {centsToDollars(orderResult.inflow.grossCents)}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-400">
-                  <span>PayPal fee or estimate:</span>
+                  <span>{orderResult.inflow.feeIsEstimated ? 'Estimated fee:' : 'Capture fee:'}</span>
                   <span className="text-red-400 font-medium">
                     -{centsToDollars(orderResult.inflow.feeCents)}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-300 pt-1 border-t border-slate-800">
-                  <span className="font-bold">Net distributed:</span>
+                  <span className="font-bold">Net allocated:</span>
                   <span className="text-emerald-400 font-extrabold">
                     {centsToDollars(orderResult.inflow.netCents)}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-400 text-[11px] pt-1 border-t border-slate-800">
-                  <span>Anchored epoch:</span>
+                  <span>Agreement hash reference:</span>
                   <span className="font-mono text-emerald-400">
                     {activeEpoch.version} ({orderResult.inflow.epochHash.slice(0, 10)}...)
                   </span>
@@ -561,7 +569,7 @@ export const PayPalCheckoutModal: React.FC<PayPalCheckoutModalProps> = ({
                 onClick={onClose}
                 className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition shadow-lg shadow-blue-600/30"
               >
-                Done (view in Trust Ledger)
+                Done
               </button>
             </div>
           )}

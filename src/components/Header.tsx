@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ShieldCheck, Sparkles, RefreshCw, Layers, DollarSign, Wallet, Bot, ChevronDown, Check, UserCheck } from 'lucide-react';
+import { ShieldCheck, Sparkles, Layers, DollarSign, Wallet, Bot, ChevronDown, Check, UserCheck } from 'lucide-react';
 import { Epoch, Member, MemberRole } from '@/lib/types';
 import { centsToDollars } from '@/lib/fairsplit-math';
 
@@ -85,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <div className="h-6 w-px bg-slate-800" />
             <div>
-              <div className="text-slate-400">Paid Out (PayPal)</div>
+              <div className="text-slate-400">Demo Payout Deductions</div>
               <div className="font-semibold text-blue-400">{centsToDollars(totalPaidCents)}</div>
             </div>
             <div className="h-6 w-px bg-slate-800" />
@@ -97,17 +97,17 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Active Epoch, Session Switcher & Action buttons */}
           <div className="flex items-center gap-3">
-            {/* Authenticated Persona Switcher */}
+            {/* Demo persona switcher; no user authentication is implemented. */}
             <div className="relative" ref={dropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsSessionDropdownOpen(!isSessionDropdownOpen)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-850 border border-slate-700/80 text-xs font-medium text-slate-200 transition cursor-pointer shadow-sm hover:border-blue-500/50"
-                title="Switch simulated logged-in persona for demo evaluation"
+                title="Switch the demo persona"
               >
                 <span className="text-sm">{currentMember.avatar}</span>
                 <div className="hidden sm:flex flex-col text-left leading-tight">
-                  <span className="text-[10px] text-slate-400 font-mono">Workstation:</span>
+                  <span className="text-[10px] text-slate-400 font-mono">Demo persona:</span>
                   <span className="font-bold text-white truncate max-w-[110px]">{currentMember.name.split(' ')[0]} ({currentMember.roleTitle.split(' ')[0]})</span>
                 </div>
                 <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isSessionDropdownOpen ? 'rotate-180' : ''}`} />
@@ -117,7 +117,7 @@ export const Header: React.FC<HeaderProps> = ({
               {isSessionDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-64 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
                   <div className="px-2.5 py-1.5 border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
-                    <span>Demo Workstation Persona</span>
+                    <span>Demo Persona</span>
                     <span className="text-emerald-400 flex items-center gap-1 font-mono">
                       <UserCheck className="w-3 h-3" /> Active
                     </span>
@@ -152,7 +152,7 @@ export const Header: React.FC<HeaderProps> = ({
                     })}
                   </div>
                   <div className="px-2 py-1.5 border-t border-slate-800 text-[10px] text-slate-500">
-                    Demo simulation: Allows testing the 4 contributor workstations from a single browser session.
+                    Switching changes the perspective used in this browser session.
                   </div>
                 </div>
               )}
