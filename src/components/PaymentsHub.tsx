@@ -303,7 +303,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
                     : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
                 }`}
               >
-                <div className="font-bold truncate">itch.io Direct</div>
+                <div className="font-bold truncate">Direct Web Store</div>
                 <div className="text-[11px] text-slate-400">$49.99</div>
               </button>
 
@@ -316,8 +316,8 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
                     : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
                 }`}
               >
-                <div className="font-bold truncate">Bandcamp Pack</div>
-                <div className="text-[11px] text-slate-400">$450.00</div>
+                <div className="font-bold truncate">Bandcamp OST</div>
+                <div className="text-[11px] text-slate-400">$25.00</div>
               </button>
 
               <button
@@ -329,8 +329,8 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
                     : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
                 }`}
               >
-                <div className="font-bold truncate">Patreon Pool</div>
-                <div className="text-[11px] text-slate-400">$125.00</div>
+                <div className="font-bold truncate">Supporter Pool</div>
+                <div className="text-[11px] text-slate-400">$100.00</div>
               </button>
 
               <button

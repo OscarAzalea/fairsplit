@@ -293,3 +293,125 @@ describe('5. SHA-256 Epoch Chaining & Tamper Anomaly Detection', () => {
     assert.equal(tamperResult.forensics?.suspectRole, undefined);
   });
 });
+
+
+describe('6. Fractional Cent Boundary Conditions & Micro-Payments', () => {
+  const standardSplits = [
+    { memberId: 'dev' as const, bps: 4000 },
+    { memberId: 'artist' as const, bps: 3000 },
+    { memberId: 'writer' as const, bps: 2000 },
+    { memberId: 'composer' as const, bps: 1000 },
+  ];
+
+  it('allocates extreme micro-amounts (1 cent, 2 cents, 3 cents) with zero lost pennies', () => {
+    // 1 cent distributed among 4 people: highest remainder (dev at 40%) gets the single cent
+    const oneCent = allocateCentsFairly(1, standardSplits);
+    assert.equal(oneCent.reduce((sum, a) => sum + a.cents, 0), 1);
+    assert.equal(oneCent.find((a) => a.memberId === 'dev')?.cents, 1);
+    assert.equal(oneCent.find((a) => a.memberId === 'artist')?.cents, 0);
+
+    // 2 cents: dev and artist get 1 cent each
+    const twoCents = allocateCentsFairly(2, standardSplits);
+    assert.equal(twoCents.reduce((sum, a) => sum + a.cents, 0), 2);
+    assert.equal(twoCents.find((a) => a.memberId === 'dev')?.cents, 1);
+    assert.equal(twoCents.find((a) => a.memberId === 'artist')?.cents, 1);
+    assert.equal(twoCents.find((a) => a.memberId === 'writer')?.cents, 0);
+
+    // 3 cents: dev, artist, writer get 1 cent each
+    const threeCents = allocateCentsFairly(3, standardSplits);
+    assert.equal(threeCents.reduce((sum, a) => sum + a.cents, 0), 3);
+    assert.equal(threeCents.find((a) => a.memberId === 'composer')?.cents, 0);
+  });
+
+  it('calculates fees accurately for sub-dollar and small purchases ($0.99, $2.99, $4.99)', () => {
+    // $0.99 (99 cents) -> 99 * 0.0299 = 2.96 -> 3 cents + 49 cents = 52 cents fee
+    assert.equal(calculatePayPalFeeCents(99), 52);
+
+    // $2.99 (299 cents) -> 299 * 0.0299 = 8.94 -> 9 cents + 49 cents = 58 cents fee
+    assert.equal(calculatePayPalFeeCents(299), 58);
+
+    // $4.99 (499 cents) -> 499 * 0.0299 = 14.92 -> 15 cents + 49 cents = 64 cents fee
+    assert.equal(calculatePayPalFeeCents(499), 64);
+  });
+});
+
+describe('7. Payment Failure & Repeated Transaction Idempotency', () => {
+  it('preserves reserve balances across multiple failed or partial payout batches', () => {
+    const epochSplits = [
+      { memberId: 'dev' as const, bps: 5000 },
+      { memberId: 'artist' as const, bps: 5000 },
+      { memberId: 'writer' as const, bps: 0 },
+      { memberId: 'composer' as const, bps: 0 },
+    ];
+
+    const testInflow: Inflow = {
+      id: 'INF-IDEMP-1',
+      source: 'Direct Web Store Purchase',
+      grossCents: 10000,
+      feeCents: 348,
+      netCents: 9652,
+      currency: 'USD',
+      timestamp: '2026-10-24T00:00:00.000Z',
+      paypalOrderId: 'ORDER-IDEMP-1',
+      epochId: 'epoch-v1.0',
+      epochHash: 'test-hash',
+      allocations: allocateCentsFairly(9652, epochSplits),
+    };
+
+    const initial = calculateMemberBalances([testInflow], []);
+    assert.equal(initial.dev, 4826);
+    assert.equal(initial.artist, 4826);
+
+    // Batch 1 fails completely
+    const failedBatch: PayoutBatch = {
+      senderBatchId: 'BATCH-FAIL',
+      payoutBatchId: 'P-FAIL',
+      timestamp: '2026-10-24T01:00:00.000Z',
+      totalCents: 4826,
+      mode: 'SIMULATED',
+      status: 'FAILED',
+      items: [
+        {
+          memberId: 'dev',
+          memberName: 'Alex Mercer',
+          receiverEmail: 'alex.dev@aurora.studio',
+          amountCents: 4826,
+          currency: 'USD',
+          status: 'FAILED',
+          senderItemId: 'ITEM-FAIL-1',
+          error: 'PAYER_ACCOUNT_RESTRICTED',
+          note: 'Failed run',
+        },
+      ],
+    };
+
+    const afterFailed = calculateMemberBalances([testInflow], [failedBatch]);
+    assert.equal(afterFailed.dev, 4826, 'Failed payout must not reduce collaborator balance');
+
+    // Batch 2 succeeds for half the amount (2000 cents)
+    const partialBatch: PayoutBatch = {
+      senderBatchId: 'BATCH-PARTIAL',
+      payoutBatchId: 'P-PARTIAL',
+      timestamp: '2026-10-24T02:00:00.000Z',
+      totalCents: 2000,
+      mode: 'SIMULATED',
+      status: 'SUCCESS',
+      items: [
+        {
+          memberId: 'dev',
+          memberName: 'Alex Mercer',
+          receiverEmail: 'alex.dev@aurora.studio',
+          amountCents: 2000,
+          currency: 'USD',
+          status: 'SUCCESS',
+          senderItemId: 'ITEM-PARTIAL-1',
+          note: 'Partial settlement',
+        },
+      ],
+    };
+
+    const afterPartial = calculateMemberBalances([testInflow], [failedBatch, partialBatch]);
+    assert.equal(afterPartial.dev, 2826, 'Balance must decrement by exactly the successful amount');
+    assert.equal(afterPartial.artist, 4826, 'Untouched member balance remains invariant');
+  });
+});

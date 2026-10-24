@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ShieldCheck, Sparkles, Layers, DollarSign, Wallet, Bot, ChevronDown, Check, UserCheck } from 'lucide-react';
+import { ShieldCheck, Sparkles, Layers, DollarSign, Wallet, Bot, ChevronDown, Check, UserCheck, RotateCcw } from 'lucide-react';
 import { Epoch, Member, MemberRole } from '@/lib/types';
 import { centsToDollars } from '@/lib/fairsplit-math';
 
@@ -18,6 +18,7 @@ interface HeaderProps {
   currentMember: Member;
   members: Member[];
   onSwitchMember: (role: MemberRole) => void;
+  onResetDemoState?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -33,6 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentMember,
   members,
   onSwitchMember,
+  onResetDemoState,
 }) => {
   const [isSessionDropdownOpen, setIsSessionDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

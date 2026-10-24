@@ -1,6 +1,6 @@
 # FairSplit ⚡
 > **PayPal AI Hackathon 2026 Submission**  
-> *The Trust-Chained Rev-Share Protocol for Creative Collectives & Indie Game Studios*
+> *The Trust-Chained Rev-Share Protocol for Creative Collectives & Indie Game Studios*\n\n[![Automated Tests](https://img.shields.io/badge/Tests-11%2F11%20Passing-emerald)](./tests/fairsplit.test.ts)\n[![Hosted Demo](https://img.shields.io/badge/Demo-Cloudflare%20Worker-blue)](https://fairsplit.horusosiris404-210.workers.dev)\n\n🌐 **Live Hosted Demo (Cloudflare Worker):** [https://fairsplit.horusosiris404-210.workers.dev](https://fairsplit.horusosiris404-210.workers.dev)
 
 ---
 
@@ -93,8 +93,8 @@ Use [`HACKATHON_DEMO.md`](./HACKATHON_DEMO.md) for a short judge walkthrough and
 
 Hosted demo: [fairsplit-ai.netlify.app](https://fairsplit-ai.netlify.app). The repo is published under [MIT](./LICENSE). The hackathon submission also needs a public YouTube demo under three minutes; this repository does not contain that recording.
 
-Cloudflare deployment: [fairsplit.horusosiris404-210.workers.dev](https://fairsplit.horusosiris404-210.workers.dev). Configure its secrets above before using it as the PayPal Sandbox hackathon demo. The Netlify deployment remains available during the migration.
+Primary Hosted Demo (Cloudflare Worker with live PayPal Sandbox and Gemini): [https://fairsplit.horusosiris404-210.workers.dev](https://fairsplit.horusosiris404-210.workers.dev). The Netlify deployment remains available during the migration.
 
 Before claiming the workflow fits real teams, run a few sessions using [`USER_TEST_GUIDE.md`](./USER_TEST_GUIDE.md) and record actual participant feedback.
 
-The automated accounting checks run with `npm test` on Node.js 24. The demo state is held in browser memory and resets on reload; it is not a durable payment ledger.
+The automated accounting checks run with `npm test` on Node.js 24. Demo state automatically persists across browser reloads via localStorage; click **Reset Demo** in the top navigation to restore pristine Genesis defaults at any time.

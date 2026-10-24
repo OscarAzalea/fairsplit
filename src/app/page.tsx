@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from '@/components/Header';
 import { AgreementStudio } from '@/components/AgreementStudio';
 import { TrustLedger } from '@/components/TrustLedger';
@@ -53,6 +53,56 @@ export default function FairSplitApp() {
     setPayoutRecommendations((prev) =>
       prev.map((r) => (r.id === id ? { ...r, status: 'DISMISSED' as const } : r))
     );
+  };
+
+  const [isClientLoaded, setIsClientLoaded] = useState<boolean>(false);
+
+  // Restore persistent state across browser reloads
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('fairsplit_app_state_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.epochs && parsed.epochs.length > 0) setEpochs(parsed.epochs);
+        if (parsed.activeEpoch) setActiveEpoch(parsed.activeEpoch);
+        if (parsed.inflows && parsed.inflows.length > 0) setInflows(parsed.inflows);
+        if (parsed.payoutBatches) setPayoutBatches(parsed.payoutBatches);
+        if (parsed.reserveReallocations) setReserveReallocations(parsed.reserveReallocations);
+        if (parsed.payoutRecommendations) setPayoutRecommendations(parsed.payoutRecommendations);
+      }
+    } catch (e) {
+      console.warn('Failed to parse saved state from localStorage:', e);
+    }
+    setIsClientLoaded(true);
+  }, []);
+
+  // Persist state to localStorage on modification
+  useEffect(() => {
+    if (!isClientLoaded) return;
+    try {
+      const stateToSave = {
+        epochs,
+        activeEpoch,
+        inflows,
+        payoutBatches,
+        reserveReallocations,
+        payoutRecommendations,
+      };
+      localStorage.setItem('fairsplit_app_state_v1', JSON.stringify(stateToSave));
+    } catch (e) {
+      console.warn('Failed to save state to localStorage:', e);
+    }
+  }, [epochs, activeEpoch, inflows, payoutBatches, reserveReallocations, payoutRecommendations, isClientLoaded]);
+
+  const handleResetDemoState = () => {
+    localStorage.removeItem('fairsplit_app_state_v1');
+    setEpochs([GENESIS_EPOCH]);
+    setActiveEpoch(GENESIS_EPOCH);
+    setInflows(INITIAL_INFLOWS);
+    setPayoutBatches(INITIAL_PAYOUT_BATCHES);
+    setReserveReallocations([]);
+    setIsTampered(false);
+    setBackupEpochs(null);
   };
 
   // Compute Studio Financial Totals
@@ -125,7 +175,7 @@ export default function FairSplitApp() {
   };
 
   // Quick Inflow Simulator under active epoch
-  const handleSimulateQuickInflow = (grossDollars: number = 1000) => {
+  const handleSimulateQuickInflow = (grossDollars: number = 49.99) => {
     const grossCents = dollarsToCents(grossDollars);
     const feeCents = calculatePayPalFeeCents(grossCents);
     const netCents = Math.max(0, grossCents - feeCents);
@@ -134,7 +184,7 @@ export default function FairSplitApp() {
     const simulationId = crypto.randomUUID();
     const newInflow: Inflow = {
       id: `SIM-INF-${simulationId}`,
-      source: `Steam Sale Batch (${activeEpoch.version} Inflow)`,
+      source: `Direct Customer Web Purchase (${activeEpoch.version} Inflow)`,
       grossCents,
       feeCents,
       netCents,
@@ -237,6 +287,7 @@ export default function FairSplitApp() {
         currentMember={currentMember}
         members={MEMBERS}
         onSwitchMember={(role) => setCurrentMemberId(role)}
+        onResetDemoState={handleResetDemoState}
       />
 
 
