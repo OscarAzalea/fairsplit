@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { Epoch, Inflow, Member, MemberRole, PayoutBatch, ReserveReallocation } from '@/lib/types';
 import { allocateCentsFairly, bpsToPercent, centsToDollars } from '@/lib/fairsplit-math';
-import { calculateMemberBalances, calculateSettledPayouts } from '@/lib/balances';
+import { calculateMemberBalances, calculateSettledPayouts, isSimulatedInflow } from '@/lib/balances';
 import { ExplainBalanceModal } from './ExplainBalanceModal';
 import { PayoutCertificateModal } from './PayoutCertificateModal';
 
@@ -34,6 +34,7 @@ interface CollaboratorBalancesProps {
   payoutBatches: PayoutBatch[];
   reserveReallocations: ReserveReallocation[];
   onApplyActiveEpochToReserves: () => void;
+  onClearSimulatedInflows: () => void;
   onNavigateToPayouts: () => void;
   currentMember?: Member;
   onSimulateQuickInflow?: (grossDollars?: number) => void;
@@ -46,6 +47,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
   payoutBatches,
   reserveReallocations,
   onApplyActiveEpochToReserves,
+  onClearSimulatedInflows,
   onNavigateToPayouts,
   currentMember,
   onSimulateQuickInflow,
@@ -64,6 +66,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
   const pendingByMember = calculateMemberBalances(inflows, payoutBatches, reserveReallocations);
   const paidByMember = calculateSettledPayouts(payoutBatches);
   const latestReallocation = reserveReallocations[reserveReallocations.length - 1];
+  const simulatedInflowCount = inflows.filter(isSimulatedInflow).length;
 
   const memberBalances = members.map((member) => {
     const totalPaidOutCents = paidByMember[member.id];
@@ -169,7 +172,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
               </div>
             </div>
             <p className="text-[11px] text-slate-400">
-              Inflows are tied to the active epoch at arrival. Want to see balances update? Simulate an inflow or apply the new epoch to unwithdrawn reserves.
+              Existing inflows keep their original split. Each demo click adds another $1,000 gross test inflow; use Apply to redistribute only the unpaid pool.
             </p>
           </div>
         </div>
@@ -180,13 +183,13 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
               type="button"
               onClick={() => {
                 onSimulateQuickInflow(1000);
-                triggerAlert(`Simulated $1,000 inflow under Epoch ${activeEpoch.version}! Balances updated in real-time.`);
+                triggerAlert(`Added one $1,000 gross demo inflow under Epoch ${activeEpoch.version}.`);
               }}
               className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-900/30 transition cursor-pointer"
-              title="Simulates a new $1,000 game sale split under the active epoch"
+              title="Each click adds another $1,000 gross demo inflow under the active epoch"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Simulate +$1,000 Inflow ({activeEpoch.version})</span>
+              <span>Add Demo Inflow +$1,000 ({activeEpoch.version})</span>
             </button>
           )}
 
@@ -202,6 +205,20 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
             >
               <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
               <span>Apply {activeEpoch.version} to Unclaimed Reserves</span>
+            </button>
+          )}
+
+          {simulatedInflowCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                onClearSimulatedInflows();
+                triggerAlert(`Cleared ${simulatedInflowCount} demo inflow${simulatedInflowCount === 1 ? '' : 's'}. Original inflows and completed payouts were kept.`);
+              }}
+              className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-amber-200 border border-amber-900/70 text-xs font-semibold transition cursor-pointer"
+              title="Remove demo inflows and any reserve snapshots that included them. Original inflows and completed payouts stay unchanged."
+            >
+              Clear {simulatedInflowCount} demo inflow{simulatedInflowCount === 1 ? '' : 's'}
             </button>
           )}
         </div>

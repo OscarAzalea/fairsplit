@@ -12,7 +12,7 @@ import { GENESIS_EPOCH, INITIAL_INFLOWS, INITIAL_PAYOUT_BATCHES, MEMBERS } from 
 import { Epoch, Inflow, PayoutBatch, PayoutRecommendation, MemberRole, ReserveReallocation } from '@/lib/types';
 import { verifyEpochChain } from '@/lib/crypto';
 import { dollarsToCents, calculatePayPalFeeCents, allocateCentsFairly } from '@/lib/fairsplit-math';
-import { calculateMemberBalances, MEMBER_ROLES } from '@/lib/balances';
+import { calculateMemberBalances, isSimulatedInflow, MEMBER_ROLES } from '@/lib/balances';
 import { ShieldCheck, Sparkles, Layers, DollarSign, Wallet } from 'lucide-react';
 
 export default function FairSplitApp() {
@@ -100,20 +100,38 @@ export default function FairSplitApp() {
     const netCents = Math.max(0, grossCents - feeCents);
     const allocations = allocateCentsFairly(netCents, activeEpoch.splits);
     const now = new Date().toISOString();
+    const simulationId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const newInflow: Inflow = {
-      id: `INF-${Math.floor(100 + Math.random() * 900)}`,
+      id: `SIM-INF-${simulationId}`,
       source: `Steam Sale Batch (${activeEpoch.version} Inflow)`,
       grossCents,
       feeCents,
       netCents,
       currency: 'USD',
       timestamp: now,
-      paypalOrderId: `ORDER-${Date.now().toString().slice(-6)}`,
+      paypalOrderId: `ORDER-${simulationId}`,
+      paymentMode: 'SIMULATED',
+      paymentStatus: 'SIMULATED',
       epochId: activeEpoch.epochId,
       epochHash: activeEpoch.hash,
       allocations,
     };
     setInflows((prev) => [newInflow, ...prev]);
+  };
+
+  const handleClearSimulatedInflows = () => {
+    const simulatedIds = new Set(inflows.filter(isSimulatedInflow).map((inflow) => inflow.id));
+    if (simulatedIds.size === 0) return;
+
+    setInflows((prev) => prev.filter((inflow) => !simulatedIds.has(inflow.id)));
+
+    // Keep the latest reserve snapshot that predates simulated inflows, if one exists.
+    let lastValidReallocationIndex = -1;
+    reserveReallocations.forEach((reallocation, index) => {
+      const includesSimulation = reallocation.includedInflowIds.some((id) => simulatedIds.has(id));
+      if (!includesSimulation) lastValidReallocationIndex = index;
+    });
+    setReserveReallocations((prev) => prev.slice(0, lastValidReallocationIndex + 1));
   };
 
   // Snapshot the unpaid pool under the active epoch without rewriting historical inflows or payouts.
@@ -267,6 +285,7 @@ export default function FairSplitApp() {
             onNavigateToPayouts={() => setActiveTab('payments')}
             currentMember={currentMember}
             onSimulateQuickInflow={handleSimulateQuickInflow}
+            onClearSimulatedInflows={handleClearSimulatedInflows}
           />
         )}
 

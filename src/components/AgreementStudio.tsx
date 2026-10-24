@@ -130,6 +130,19 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
     resetRatification();
   };
 
+  // Direct entry changes only the selected member. This lets all four typed values stay fixed.
+  const handleManualSplitEntry = (role: MemberRole, newBps: number) => {
+    const updated = { ...splits, [role]: Math.max(0, Math.min(TOTAL_BPS, Math.round(newBps))) };
+    setSplits(updated);
+    setPercentageDrafts({
+      dev: formatPercentageInput(updated.dev),
+      artist: formatPercentageInput(updated.artist),
+      writer: formatPercentageInput(updated.writer),
+      composer: formatPercentageInput(updated.composer),
+    });
+    resetRatification();
+  };
+
   const commitPercentageInput = (role: MemberRole) => {
     const rawValue = percentageDrafts[role].trim();
     if (!rawValue) {
@@ -143,7 +156,7 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
       return;
     }
 
-    handleSplitChange(role, Math.round(Math.max(0, Math.min(100, enteredPercent)) * 100));
+    handleManualSplitEntry(role, Math.round(Math.max(0, Math.min(100, enteredPercent)) * 100));
   };
 
   // 1-Click Preset Allocations
@@ -181,9 +194,12 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
     const activeBps = activeEpoch.splits.find((s) => s.memberId === m.id)?.bps ?? 0;
     return splits[m.id] !== activeBps;
   });
+  const splitTotalBps = members.reduce((sum, member) => sum + splits[member.id], 0);
+  const splitsAreValid = splitTotalBps === TOTAL_BPS;
 
   // Start Ratification with auto-scroll
   const handleStartProposal = () => {
+    if (!splitsAreValid) return;
     if (isProposing) {
       proposalRef.current?.scrollIntoView({ behavior: 'smooth' });
       return;
@@ -203,6 +219,7 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
 
   // Sign Proposal as a specific member
   const handleSignAsMember = (role: MemberRole) => {
+    if (!splitsAreValid) return;
     const member = members.find((m) => m.id === role)!;
     const now = new Date().toISOString();
     const tempEpochHash = computeEpochHash(
@@ -232,6 +249,7 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
 
   // Fast Ratify All for demo convenience
   const handleFastRatifyAll = () => {
+    if (!splitsAreValid) return;
     const now = new Date().toISOString();
     const tempEpochHash = computeEpochHash(
       `epoch-${proposedVersion}`,
@@ -279,6 +297,7 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
   const checkAndFinalizeRatification = (
     sigs: Record<MemberRole, RatificationSignature | null>
   ) => {
+    if (!splitsAreValid) return;
     const allSigned = members.every((m) => sigs[m.id] !== null);
     if (!allSigned) return;
 
@@ -352,12 +371,13 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
 
           <button
             onClick={handleStartProposal}
-            disabled={!hasChangesFromActive && !isProposing}
+            disabled={!splitsAreValid || (!hasChangesFromActive && !isProposing)}
             className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-lg ${
-              hasChangesFromActive || isProposing
+              splitsAreValid && (hasChangesFromActive || isProposing)
                 ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
                 : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
             }`}
+            title={!splitsAreValid ? 'All member shares must total exactly 100% before ratification.' : undefined}
           >
             <FileSignature className="w-4 h-4" />
             <span>{isProposing ? 'Review Ratification' : 'Propose New Epoch'}</span>
@@ -390,7 +410,9 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
           <div className="text-slate-300 flex items-center gap-2">
             <span>Visual Equity Distribution</span>
             <span className="text-[10px] text-slate-400 font-normal">
-              (Total: {TOTAL_BPS.toLocaleString()} BPS = 100.00%)
+              (<span className={splitsAreValid ? 'text-emerald-400' : 'text-rose-400'}>
+                Total: {formatPercentageInput(splitTotalBps)}% / 100%
+              </span>)
             </span>
           </div>
           <div className="flex items-center gap-4 text-xs font-mono">
@@ -415,6 +437,12 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
             ))}
           </div>
         </div>
+
+        {!splitsAreValid && (
+          <p className="text-[11px] text-rose-300">
+            Shares must total exactly 100%. Type 25 for each member or choose the Equal Quad preset before proposing.
+          </p>
+        )}
 
         {/* Stacked Segmented Bar */}
         <div className="h-4 w-full rounded-full bg-slate-950 overflow-hidden flex border border-slate-800">

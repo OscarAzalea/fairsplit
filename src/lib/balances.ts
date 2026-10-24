@@ -2,6 +2,11 @@ import { Inflow, MemberRole, PayoutBatch, ReserveReallocation } from './types';
 
 export const MEMBER_ROLES: MemberRole[] = ['dev', 'artist', 'writer', 'composer'];
 
+export function isSimulatedInflow(inflow: Inflow): boolean {
+  return inflow.paymentMode === 'SIMULATED' ||
+    (inflow.paypalOrderId.startsWith('ORDER-') && inflow.source.startsWith('Steam Sale Batch ('));
+}
+
 const emptyBalances = (): Record<MemberRole, number> => ({
   dev: 0,
   artist: 0,
