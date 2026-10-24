@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f2f6fc;
+  --foreground: #14253e;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --background: #020617;
+  --foreground: #f1f5f9;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -12,15 +19,115 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Existing components share Tailwind color tokens. Remapping those tokens
+   gives every tab, drawer, and dialog the same light palette while keeping
+   the original dark theme available. */
+:root[data-theme="light"] {
+  --color-slate-950: #f2f6fc;
+  --color-slate-900: #ffffff;
+  --color-slate-800: #e7edf6;
+  --color-slate-700: #c8d3e2;
+  --color-slate-600: #687b93;
+  --color-slate-500: #60728a;
+  --color-slate-400: #52647d;
+  --color-slate-300: #3d506a;
+  --color-slate-200: #283b55;
+  --color-slate-100: #14253e;
+
+  --color-blue-950: #e9f1ff;
+  --color-blue-900: #d9e9ff;
+  --color-blue-800: #a8c6f3;
+  --color-blue-700: #7ca8e9;
+  --color-blue-500: #1d60d4;
+  --color-blue-400: #1d4ed8;
+  --color-blue-300: #1e40af;
+  --color-blue-200: #1e3a8a;
+
+  --color-cyan-950: #e8f8ff;
+  --color-cyan-800: #abdcea;
+  --color-cyan-400: #0e7490;
+  --color-cyan-300: #155e75;
+
+  --color-indigo-950: #ecefff;
+  --color-indigo-900: #dce2ff;
+  --color-indigo-800: #bcc7f4;
+  --color-indigo-400: #4338ca;
+  --color-indigo-300: #3730a3;
+
+  --color-emerald-950: #e6f7ef;
+  --color-emerald-900: #d5f1e3;
+  --color-emerald-800: #a8d9bf;
+  --color-emerald-700: #7fbba0;
+  --color-emerald-400: #047857;
+  --color-emerald-300: #066b55;
+  --color-emerald-200: #065f46;
+
+  --color-amber-950: #fff7e6;
+  --color-amber-900: #ffebbd;
+  --color-amber-800: #e9ca85;
+  --color-amber-700: #c79a51;
+  --color-amber-400: #a16207;
+  --color-amber-300: #92400e;
+  --color-amber-200: #78350f;
+
+  --color-red-950: #fff0f0;
+  --color-red-800: #efb1b1;
+  --color-red-700: #d98282;
+  --color-red-400: #b91c1c;
+  --color-red-300: #991b1b;
+  --color-red-200: #7f1d1d;
+
+  --color-purple-950: #f3eaff;
+  --color-purple-900: #e5d4ff;
+  --color-purple-700: #b590ed;
+  --color-purple-400: #7e22ce;
+  --color-purple-300: #6b21a8;
+  --color-purple-200: #581c87;
+}
+
+@media screen {
+  :root[data-theme="light"] [class~="text-white"],
+  :root[data-theme="light"] [class~="hover:text-white"]:hover {
+    color: #14253e;
+  }
+
+  /* Keep white labels on filled action buttons and vivid gradient badges. */
+  :root[data-theme="light"] :is(
+    [class~="bg-blue-600"],
+    [class~="bg-emerald-600"],
+    [class~="bg-indigo-600"],
+    [class~="bg-purple-600"],
+    [class~="bg-purple-600/90"],
+    [class~="from-blue-600"],
+    [class~="from-cyan-600"],
+    [class~="from-emerald-600"]
+  ):is([class~="text-white"]),
+  :root[data-theme="light"] :is(
+    [class~="bg-blue-600"],
+    [class~="bg-emerald-600"],
+    [class~="bg-indigo-600"],
+    [class~="bg-purple-600"],
+    [class~="bg-purple-600/90"],
+    [class~="from-blue-600"],
+    [class~="from-cyan-600"],
+    [class~="from-emerald-600"]
+  ) [class~="text-white"],
+  :root[data-theme="light"] [class~="hover:bg-blue-600"][class~="hover:text-white"]:hover {
+    color: #ffffff;
+  }
+
+  :root[data-theme="light"] [class~="border-white/10"] {
+    border-color: #d6dfeb;
+  }
+
+  :root[data-theme="light"] [class~="hover:bg-slate-850"]:hover,
+  :root[data-theme="light"] [class~="hover:bg-slate-850/50"]:hover {
+    background-color: #e7edf6;
+  }
 }

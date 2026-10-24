@@ -14,7 +14,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark bg-slate-950 text-slate-100 antialiased">
+    <html lang="en" data-theme="light" suppressHydrationWarning className="bg-slate-950 text-slate-100 antialiased">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "try { if (localStorage.getItem('fairsplit-theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch {}",
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
         <IntegrationStatusBar />
         {children}

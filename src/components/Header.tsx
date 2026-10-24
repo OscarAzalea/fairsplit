@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ShieldCheck, Sparkles, Layers, DollarSign, Wallet, Bot, ChevronDown, Check, UserCheck, RotateCcw } from 'lucide-react';
+import { ShieldCheck, Sparkles, Layers, DollarSign, Wallet, Bot, ChevronDown, Check, UserCheck, RotateCcw, Sun, Moon } from 'lucide-react';
 import { Epoch, Member, MemberRole } from '@/lib/types';
 import { centsToDollars } from '@/lib/fairsplit-math';
 
@@ -37,7 +37,23 @@ export const Header: React.FC<HeaderProps> = ({
   onResetDemoState,
 }) => {
   const [isSessionDropdownOpen, setIsSessionDropdownOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = nextTheme;
+    setTheme(nextTheme);
+    try {
+      localStorage.setItem('fairsplit-theme', nextTheme);
+    } catch {
+      // The switch still works when browser storage is unavailable.
+    }
+  };
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -57,18 +73,18 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           {/* Logo & Hackathon Tag */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 shadow-lg shadow-blue-500/20 text-white font-black text-xl tracking-tight">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+            <div className="flex shrink-0 items-center justify-center w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 shadow-lg shadow-blue-500/20 text-white font-black text-lg sm:text-xl tracking-tight">
               FS
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xl font-bold tracking-tight text-white">FairSplit</span>
-                <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-900/60 text-blue-300 border border-blue-700/50">
+                <span className="text-lg sm:text-xl font-bold tracking-tight text-white">FairSplit</span>
+                <span className="hidden md:inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-900/60 text-blue-300 border border-blue-700/50">
                   PayPal AI Hackathon
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="hidden sm:block text-xs text-slate-400">
                 Fintech Rev-Share & Trust Ledger for &ldquo;Project Aurora&rdquo;
               </p>
             </div>
@@ -98,13 +114,13 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Active Epoch, Session Switcher & Action buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* Demo persona switcher; no user authentication is implemented. */}
             <div className="relative" ref={dropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsSessionDropdownOpen(!isSessionDropdownOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-850 border border-slate-700/80 text-xs font-medium text-slate-200 transition cursor-pointer shadow-sm hover:border-blue-500/50"
+                className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-850 border border-slate-700/80 text-xs font-medium text-slate-200 transition cursor-pointer shadow-sm hover:border-blue-500/50"
                 title="Switch the demo persona"
               >
                 <span className="text-sm">{currentMember.avatar}</span>
@@ -160,6 +176,17 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white transition cursor-pointer"
+              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+              title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+              aria-pressed={theme === 'dark'}
+            >
+              {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+            </button>
+
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 text-xs font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>Active: {activeEpoch.version}</span>
@@ -167,17 +194,17 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={onOpenAdvisor}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold transition shadow-md shadow-cyan-600/20 cursor-pointer"
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold transition shadow-md shadow-cyan-600/20 cursor-pointer"
               title="Open Gemini AI Studio Advisor"
             >
               <Bot className="w-4 h-4" />
-              <span>AI Advisor</span>
+              <span className="hidden sm:inline">AI Advisor</span>
             </button>
 
             <button
               onClick={onVerifyChain}
               disabled={isVerifyingChain}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-xs transition cursor-pointer"
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-xs transition cursor-pointer"
               title="Verify cryptographic SHA-256 chain integrity"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
