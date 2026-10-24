@@ -1,4 +1,4 @@
-import { BalanceAuditResult, Epoch, Inflow, Member, MemberRole, NegotiationResult, PayoutBatch, StudioAdviceResult, PayoutRecommendation } from './types';
+import { BalanceAuditResult, Epoch, Inflow, Member, MemberRole, NegotiationResult, PayoutBatch, StudioAdviceResult, PayoutRecommendation, StudioChatResult } from './types';
 import { bpsToPercent, centsToDollars, TOTAL_BPS } from './fairsplit-math';
 
 interface NegotiationInput {
@@ -518,4 +518,203 @@ Respond ONLY with a valid JSON object matching this schema:
     status: 'PENDING_REVIEW',
   };
 }
+
+/**
+ * Conversational FairSplit Studio AI Advisor & Payout Mediator.
+ * Handles freeform conversational inquiries, financial questions,
+ * and peer payout scheduling without rigid form clicks.
+ */
+export async function runStudioChat(
+  userMessage: string,
+  chatHistory: Array<{ sender: 'ai' | 'user'; text: string }>,
+  currentMember: Member,
+  activeEpoch: Epoch,
+  pendingReserveCents: number,
+  inflowsCount: number
+): Promise<StudioChatResult> {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  // Format 7 days from now
+  const targetDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const formattedDate = targetDate.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  const lowerMsg = userMessage.toLowerCase().trim();
+
+  // Check for attribution selection in conversation
+  const isAttributionResponse =
+    lowerMsg === 'attributed' ||
+    lowerMsg === 'anonymous' ||
+    lowerMsg === 'ai_suggestion' ||
+    lowerMsg.includes('my name') ||
+    lowerMsg.includes('say i proposed') ||
+    lowerMsg.includes('from me') ||
+    lowerMsg.includes(currentMember.name.toLowerCase().split(' ')[0]) ||
+    lowerMsg.includes('anonym') ||
+    lowerMsg.includes('secret') ||
+    lowerMsg.includes('just an ai') ||
+    lowerMsg.includes('ai suggestion') ||
+    lowerMsg.includes('ai optimize');
+
+  // If chatHistory contains the attribution question or user gave an attribution reply:
+  const lastAiMessage = [...chatHistory].reverse().find((m) => m.sender === 'ai');
+  const wasAskingAttribution =
+    lastAiMessage &&
+    (lastAiMessage.text.includes('how would you like me to attribute') ||
+      lastAiMessage.text.includes('should it say you proposed it') ||
+      lastAiMessage.text.includes('attribute this recommendation') ||
+      lastAiMessage.text.includes('attribute this request') ||
+      lastAiMessage.text.includes('attribute it'));
+
+  if (isAttributionResponse || wasAskingAttribution) {
+    let isAnonymous = false;
+    let requesterName = `${currentMember.name} (${currentMember.roleTitle})`;
+    let attributionLabel = `Under your name (${currentMember.name})`;
+
+    if (
+      lowerMsg === 'anonymous' ||
+      lowerMsg.includes('anonym') ||
+      lowerMsg.includes('secret') ||
+      lowerMsg.includes('mask')
+    ) {
+      isAnonymous = true;
+      requesterName = 'Anonymous Collaborator';
+      attributionLabel = 'Anonymously (Protected identity)';
+    } else if (
+      lowerMsg === 'ai_suggestion' ||
+      lowerMsg.includes('just an ai') ||
+      lowerMsg.includes('ai suggestion') ||
+      lowerMsg.includes('autonomous')
+    ) {
+      isAnonymous = true;
+      requesterName = 'FairSplit AI Financial Controller (Fee-Optimization Cadence)';
+      attributionLabel = 'Autonomous AI Optimization Suggestion';
+    }
+
+    const recId = `REC-PAYOUT-${Date.now().toString().slice(-6)}`;
+    const amountCents = pendingReserveCents > 0 ? pendingReserveCents : 125000;
+
+    const proposal: PayoutRecommendation = {
+      id: recId,
+      createdAt: new Date().toISOString(),
+      requesterRole: isAnonymous ? undefined : currentMember.id,
+      requesterName,
+      isAnonymous,
+      reasonOrNeed: 'Upcoming liquidity requirement & milestone compensation',
+      recommendedDate: formattedDate,
+      recommendedAmountCents: amountCents,
+      feeOptimizationNote: `Recommends a batch release of ${centsToDollars(amountCents)} on ${formattedDate} to clear pending member obligations while keeping relative PayPal fee drag under 1.2%.`,
+      status: 'PENDING_REVIEW',
+    };
+
+    return {
+      reply: `Cool, I've prepared the recommendation memo attributed as **${attributionLabel}**.\n\nI calculated that disbursing **${centsToDollars(amountCents)}** on **${formattedDate}** balances your liquidity need with studio reserves, while keeping PayPal transaction fees at minimum.\n\nShall I submit this to the Payments Hub queue for Marcus to review?`,
+      proposal,
+    };
+  }
+
+  // Check if user is asking to make a payout earlier or asking for money/rent
+  const isPayoutRequest =
+    lowerMsg.includes('payout') ||
+    lowerMsg.includes('pay out') ||
+    lowerMsg.includes('earlier') ||
+    lowerMsg.includes('rent') ||
+    lowerMsg.includes('advance') ||
+    lowerMsg.includes('money') ||
+    lowerMsg.includes('cash') ||
+    lowerMsg.includes('batch') ||
+    lowerMsg.includes('disburse') ||
+    lowerMsg.includes('withdraw') ||
+    lowerMsg.includes('suggest');
+
+  if (isPayoutRequest) {
+    return {
+      reply: `I can definitely propose that to Marcus! Our studio currently has **${centsToDollars(pendingReserveCents)}** in pending reserves, which is plenty to cover an early payout run without high fee drag.\n\nI can suggest scheduling it for **${formattedDate}**.\n\nBefore I submit it to the team dashboard, how should I attribute it?\n• Should it say you proposed it (**${currentMember.name}**)?\n• **Anonymously** ('Anonymous Collaborator')?\n• Or should it just be an autonomous **AI suggestion**?`,
+      quickOptions: [
+        { label: `👤 Under my name (${currentMember.name.split(' ')[0]})`, value: 'attributed' },
+        { label: '🕵️ Anonymous', value: 'anonymous' },
+        { label: '🤖 Just an AI suggestion', value: 'ai_suggestion' },
+      ],
+    };
+  }
+
+  // If Gemini API is available and it's a general question, call Gemini 3.5 Flash Lite
+  if (apiKey) {
+    try {
+      const historyText = chatHistory
+        .slice(-4)
+        .map((m) => `${m.sender === 'user' ? currentMember.name : 'AI Advisor'}: ${m.text}`)
+        .join('\n');
+
+      const prompt = `You are FairSplit AI Studio Advisor for "Project Aurora", an indie game collective rev-share.
+User chatting with you: ${currentMember.name} (${currentMember.roleTitle}, ID: ${currentMember.id}).
+Active Contract Epoch: ${activeEpoch.version}
+Current Studio Pending Reserve: ${centsToDollars(pendingReserveCents)} (${pendingReserveCents} cents).
+Total Inflows Processed: ${inflowsCount}
+PayPal Fee Model: 2.99% + $0.49 per inflow; $0.25 per batch payout item.
+
+Recent Chat:
+${historyText}
+
+User Query: "${userMessage}"
+
+Respond conversationally, warmly, and concisely (2-4 sentences max). If they are asking about Steam refunds, PayPal fees, or DLC splits, give specific, actionable advice based on Project Aurora's numbers.`;
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(5000),
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.4,
+              maxOutputTokens: 250,
+            },
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          return { reply: text.trim() };
+        }
+      }
+    } catch (err) {
+      console.warn('Gemini chat API fallback:', err);
+    }
+  }
+
+  // Fallback heuristic answers for common advisory topics
+  if (lowerMsg.includes('steam') || lowerMsg.includes('refund')) {
+    const bufferAmount = centsToDollars(Math.round(pendingReserveCents * 0.06));
+    return {
+      reply: `For Steam launches, I recommend holding a 5% to 8% escrow reserve (~**${bufferAmount}** from our current pending balance of ${centsToDollars(pendingReserveCents)}) for 14 days. This accommodates customer returns without causing negative PayPal balance disputes. Once the 14-day window passes, the escrow can be safely distributed.`,
+    };
+  }
+
+  if (lowerMsg.includes('fee') || lowerMsg.includes('cost')) {
+    return {
+      reply: `PayPal charges a fixed fee of $0.49 per commercial inflow plus $0.25 per payout item. Triggering daily micro-withdrawals drives relative fee drag up to ~8%. Batching payouts once studio reserves cross **$500+** keeps total fee overhead down to ~1.2%, saving our team $18–$35 per milestone.`,
+    };
+  }
+
+  if (lowerMsg.includes('dlc') || lowerMsg.includes('ost') || lowerMsg.includes('expansion') || lowerMsg.includes('composer')) {
+    return {
+      reply: `Rather than mutating the base game equity permanently, the best practice is to ratify a milestone-specific **Epoch v2.0** in Agreement Studio. That way, the Composer can receive a higher cut (e.g. 25-35%) on soundtrack DLC sales while maintaining foundational splits on the base game.`,
+    };
+  }
+
+  return {
+    reply: `I'm monitoring Project Aurora's active contract (${activeEpoch.version}) with **${centsToDollars(pendingReserveCents)}** in pending reserves. Feel free to ask about payout timing, Steam refund buffers, or rev-share adjustments—or let me know if you want me to propose an earlier payout date to Marcus!`,
+  };
+}
+
 

@@ -167,5 +167,27 @@ export interface PayoutRecommendation {
   status: 'PENDING_REVIEW' | 'PRE_AUTHORIZED' | 'DISMISSED';
 }
 
+export interface StudioChatMessage {
+  id: string;
+  sender: 'ai' | 'user';
+  text: string;
+  timestamp: string;
+  quickOptions?: {
+    label: string;
+    value: string;
+  }[];
+  payoutProposal?: PayoutRecommendation;
+  isPushedToQueue?: boolean;
+}
+
+export interface StudioChatResult {
+  reply: string;
+  quickOptions?: {
+    label: string;
+    value: string;
+  }[];
+  proposal?: PayoutRecommendation;
+}
+
 
 

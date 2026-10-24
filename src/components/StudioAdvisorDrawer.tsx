@@ -1,26 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
-  Sparkles,
   Bot,
-  Lightbulb,
-  TrendingUp,
-  Coins,
-  ShieldAlert,
+  Sparkles,
+  Send,
   Loader2,
   CheckCircle2,
-  CalendarClock,
-  UserCheck,
-  UserX,
-  Send,
-  ArrowRight,
-  Shield,
   ShieldCheck,
-  Layers,
+  CalendarClock,
+  Coins,
+  RefreshCw,
 } from 'lucide-react';
-import { Epoch, Member, StudioAdviceResult, PayoutRecommendation } from '@/lib/types';
+import { Epoch, Member, PayoutRecommendation, StudioChatMessage } from '@/lib/types';
 import { centsToDollars } from '@/lib/fairsplit-math';
 
 interface StudioAdvisorDrawerProps {
@@ -42,509 +35,376 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
   onPushRecommendation,
   currentMember,
 }) => {
-  // Mode Toggle: 'advisory' vs 'scheduler'
-  const [activeMode, setActiveMode] = useState<'advisory' | 'scheduler'>('scheduler');
-
-  // Strategy Advisory State
-  const [selectedTopic, setSelectedTopic] = useState<string>('PayPal Fee Optimization');
-  const [customQuestion, setCustomQuestion] = useState<string>(
-    'When should our team trigger our next PayPal batch payout to minimize commercial fees?'
-  );
+  const [messages, setMessages] = useState<StudioChatMessage[]>([]);
+  const [inputValue, setInputValue] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [adviceResult, setAdviceResult] = useState<StudioAdviceResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [submittedProposalIds, setSubmittedProposalIds] = useState<Set<string>>(new Set());
 
-  // Collaborator Smart Payout Scheduler State
-  const [isAnonymous, setIsAnonymous] = useState<boolean>(true);
-  const [collaboratorNeed, setCollaboratorNeed] = useState<string>(
-    'Upcoming personal rent expenses and completed character modeling milestone deliverables.'
-  );
-  const [isSchedulerLoading, setIsSchedulerLoading] = useState<boolean>(false);
-  const [schedulerResult, setSchedulerResult] = useState<PayoutRecommendation | null>(null);
-  const [hasPushedToQueue, setHasPushedToQueue] = useState<boolean>(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Initialize greeting on first load or persona change
+  useEffect(() => {
+    if (messages.length === 0) {
+      const firstName = currentMember.name.split(' ')[0];
+      setMessages([
+        {
+          id: 'msg-initial-greeting',
+          sender: 'ai',
+          text: `Hi ${firstName}! 👋 I'm your FairSplit Studio Financial Advisor & Payout Mediator for Project Aurora.\n\nYou can ask me anything about our rev-share, Steam refund buffers, or PayPal fee optimization—or if you need an early payout or want to suggest our next batch payout date to Marcus, just let me know!`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+    }
+  }, [currentMember, messages.length]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (isOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isOpen, isLoading]);
+
+  // Focus input when opened
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 200);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const presetTopics = [
-    {
-      title: 'PayPal Fee Optimization',
-      question: 'When should our team trigger our next PayPal batch payout to minimize commercial fees?',
-      icon: Coins,
-    },
-    {
-      title: 'Steam Refund Reserve Buffer',
-      question: 'How should Project Aurora reserve funds for Steam 14-day customer refunds before distributing payouts?',
-      icon: ShieldAlert,
-    },
-    {
-      title: 'DLC & Expansion Rev-Share',
-      question: 'How should we structure equity for the Composer on dynamic soundtrack DLC without destabilizing core dev equity?',
-      icon: TrendingUp,
-    },
-  ];
+  const handleSendMessage = async (textToSend?: string) => {
+    const text = (textToSend || inputValue).trim();
+    if (!text || isLoading) return;
 
-  const handleSelectPreset = (preset: typeof presetTopics[0]) => {
-    setSelectedTopic(preset.title);
-    setCustomQuestion(preset.question);
-    setAdviceResult(null);
-  };
+    const userMsg: StudioChatMessage = {
+      id: `user-${Date.now()}`,
+      sender: 'user',
+      text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
 
-  const handleGetAdvice = async () => {
-    if (!customQuestion.trim()) return;
+    setMessages((prev) => [...prev, userMsg]);
+    setInputValue('');
     setIsLoading(true);
-    setError(null);
 
     try {
-      const res = await fetch('/api/advisor', {
+      const res = await fetch('/api/ai-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userQuery: customQuestion,
-          topic: selectedTopic,
+          userMessage: text,
+          chatHistory: messages.slice(-6).map((m) => ({ sender: m.sender, text: m.text })),
+          currentMember,
           activeEpoch,
-          pendingCents: pendingReserveCents,
+          pendingReserveCents,
           inflowsCount,
         }),
       });
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server responded with ${res.status}`);
+        throw new Error(`Server responded with ${res.status}`);
       }
-      const data: StudioAdviceResult = await res.json();
-      setAdviceResult(data);
+
+      const data = await res.json();
+
+      const aiMsg: StudioChatMessage = {
+        id: `ai-${Date.now()}`,
+        sender: 'ai',
+        text: data.reply || 'I processed your request.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        quickOptions: data.quickOptions,
+        payoutProposal: data.proposal,
+      };
+
+      setMessages((prev) => [...prev, aiMsg]);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Advisor request failed');
+      console.error('AI chat failed:', err);
+      // Friendly fallback
+      const aiMsg: StudioChatMessage = {
+        id: `ai-err-${Date.now()}`,
+        sender: 'ai',
+        text: `I'm having a brief connection delay, but I'm monitoring our ${centsToDollars(pendingReserveCents)} pending reserve. If you'd like to propose an early payout to Marcus, let me know if it should be under your name, anonymous, or an AI suggestion!`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        quickOptions: [
+          { label: `👤 Under my name (${currentMember.name.split(' ')[0]})`, value: 'attributed' },
+          { label: '🕵️ Anonymous', value: 'anonymous' },
+          { label: '🤖 Just an AI suggestion', value: 'ai_suggestion' },
+        ],
+      };
+      setMessages((prev) => [...prev, aiMsg]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Trigger Smart Payout Scheduler Recommendation
-  const handleGeneratePayoutSchedule = async () => {
-    setIsSchedulerLoading(true);
-    setError(null);
-    setHasPushedToQueue(false);
+  const handlePushProposal = (proposal: PayoutRecommendation) => {
+    if (onPushRecommendation) {
+      onPushRecommendation(proposal);
+      setSubmittedProposalIds((prev) => new Set(prev).add(proposal.id));
 
-    const displayName = isAnonymous
-      ? 'Anonymous Collaborator'
-      : `${currentMember.name} (${currentMember.roleTitle})`;
-
-    try {
-      const res = await fetch('/api/payout-recommendation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requesterName: displayName,
-          isAnonymous,
-          requesterRole: isAnonymous ? undefined : currentMember.id,
-          reasonOrNeed: collaboratorNeed,
-          pendingCents: pendingReserveCents,
-          activeEpoch,
-        }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to generate payout recommendation');
-      }
-
-      const rec: PayoutRecommendation = await res.json();
-      setSchedulerResult(rec);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Scheduler request failed');
-    } finally {
-      setIsSchedulerLoading(false);
+      // Add confirmation message to chat
+      const confirmMsg: StudioChatMessage = {
+        id: `ai-confirm-${Date.now()}`,
+        sender: 'ai',
+        text: `✅ Done! I've submitted the recommendation memo directly to the **Payments Hub** queue. Marcus will see it when reviewing upcoming payouts.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, confirmMsg]);
     }
   };
 
-  const handlePushToQueue = () => {
-    if (schedulerResult && onPushRecommendation) {
-      onPushRecommendation(schedulerResult);
-      setHasPushedToQueue(true);
-    }
+  const handleResetChat = () => {
+    const firstName = currentMember.name.split(' ')[0];
+    setMessages([
+      {
+        id: 'msg-initial-greeting-reset',
+        sender: 'ai',
+        text: `Hi ${firstName}! 👋 Ask me anything about studio finances or request an early payout batch for Marcus!`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
   };
+
+  const starterSuggestions = [
+    'Can we propose an early payout to Marcus? Rent is due soon.',
+    'When should we trigger our next batch to minimize PayPal fees?',
+    'How much should we set aside for Steam refund buffers?',
+    'How should we structure DLC rev-share for the Composer?',
+  ];
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-sm flex justify-end animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col h-full overflow-y-auto">
+      <div className="w-full max-w-xl bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col h-full">
         {/* Header */}
-        <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950/70 sticky top-0 z-10">
+        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/90 sticky top-0 z-10 backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0">
               <Bot className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white">FairSplit AI Studio Advisor</h2>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800">
+                <h2 className="text-base font-bold text-white leading-tight">FairSplit AI Studio Advisor</h2>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 shrink-0">
                   Gemini 3.5 Flash
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
-                Autonomous financial governance & payout scheduling mediator
-              </p>
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="truncate">
+                  Logged in as <strong className="text-slate-200">{currentMember.avatar} {currentMember.name}</strong> ({currentMember.roleTitle})
+                </span>
+              </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleResetChat}
+              title="Reset conversation"
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Feature Mode Selector Tabs */}
-        <div className="p-4 bg-slate-950/80 border-b border-slate-800/80 flex gap-2">
-          <button
-            onClick={() => setActiveMode('scheduler')}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-              activeMode === 'scheduler'
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-850'
-            }`}
-          >
-            <CalendarClock className="w-4 h-4 text-cyan-300" />
-            <span>Smart Payout Scheduler</span>
-          </button>
-
-          <button
-            onClick={() => setActiveMode('advisory')}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-              activeMode === 'advisory'
-                ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-600/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-850'
-            }`}
-          >
-            <Lightbulb className="w-4 h-4 text-amber-300" />
-            <span>Strategic Studio Advisory</span>
-          </button>
+        {/* Studio Context Pill Banner */}
+        <div className="px-5 py-2.5 bg-slate-950/60 border-b border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Active Epoch: <strong className="text-slate-200">{activeEpoch.version}</strong></span>
+          </div>
+          <div>
+            <span>Pending Reserves: <strong className="text-amber-400">{centsToDollars(pendingReserveCents)}</strong></span>
+          </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="p-6 space-y-6 flex-1">
-          
-          {/* TAB 1: SMART PAYOUT SCHEDULER */}
-          {activeMode === 'scheduler' && (
-            <div className="space-y-5 animate-in fade-in duration-200">
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-slate-950 border border-blue-900/50 space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-blue-300 uppercase tracking-wider">
-                  <CalendarClock className="w-4 h-4 text-cyan-400" />
-                  <span>Peer Liquidity & Payout Mediation</span>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Need money or want to recommend a payout date without awkward social pressure? Ask the AI to calculate the fee-optimal timing based on studio reserves and anonymously submit a formal recommendation to the team lead.
-                </p>
-              </div>
+        {/* Message Feed */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          {messages.map((msg) => {
+            const isUser = msg.sender === 'user';
 
-              {/* Authenticated Identity Anchor (Zero Spoofing) */}
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
-                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  <span className="flex items-center gap-1.5 text-emerald-400">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    Authenticated Requester Session
-                  </span>
-                  <span className="font-mono text-slate-500">ID: {currentMember.id}</span>
-                </div>
-
-                <div className="flex items-center gap-3 pt-0.5">
-                  <div className="text-2xl">{currentMember.avatar}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white truncate">{currentMember.name}</span>
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-950 text-blue-300 border border-blue-800 shrink-0">
-                        {currentMember.roleTitle}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-slate-400 font-mono truncate">
-                      {currentMember.paypalEmail}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800/80 text-[10px] text-slate-400 flex items-start gap-2">
-                  <Shield className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
-                  <span>
-                    <strong className="text-slate-300">Anti-Spoofing Enforced:</strong> Your request automatically binds to your logged-in session credentials. To switch personas for testing, use the session switcher in the top navigation header.
-                  </span>
-                </div>
-              </div>
-
-              {/* Privacy / Anonymous Mode Toggle */}
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  {isAnonymous ? (
-                    <UserX className="w-5 h-5 text-amber-400" />
-                  ) : (
-                    <UserCheck className="w-5 h-5 text-emerald-400" />
-                  )}
-                  <div>
-                    <span className="text-xs font-bold text-white block">
-                      {isAnonymous ? 'Anonymous Request Mode (Protected)' : 'Attributed Request Mode'}
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      {isAnonymous
-                        ? 'Your identity is masked. The team lead will only see "Anonymous Collaborator", removing social friction.'
-                        : `The team lead will see that ${currentMember.name} (${currentMember.roleTitle}) suggested this payout.`}
-                    </span>
-                  </div>
-                </div>
-
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isAnonymous}
-                    onChange={(e) => setIsAnonymous(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-
-              {/* Stated Need / Message to AI */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Stated Timeline or Liquidity Need:
-                </label>
-                <textarea
-                  value={collaboratorNeed}
-                  onChange={(e) => setCollaboratorNeed(e.target.value)}
-                  rows={2}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-blue-500"
-                  placeholder="e.g. Rent is due on the 1st; milestone 2 assets delivered..."
-                />
-              </div>
-
-              {/* Action Trigger */}
-              <button
-                onClick={handleGeneratePayoutSchedule}
-                disabled={isSchedulerLoading}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition shadow-lg shadow-blue-600/30 cursor-pointer disabled:opacity-50"
+            return (
+              <div
+                key={msg.id}
+                className={`flex gap-3 animate-in fade-in slide-in-from-bottom-1 duration-200 ${
+                  isUser ? 'justify-end' : 'justify-start'
+                }`}
               >
-                {isSchedulerLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Gemini 3.5 Calculating Optimal Payout Window...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Calculate Optimal Payout Window</span>
-                  </>
+                {!isUser && (
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shrink-0 shadow-md">
+                    <Bot className="w-4 h-4" />
+                  </div>
                 )}
-              </button>
 
-              {/* Scheduler AI Output Card */}
-              {schedulerResult && (
-                <div className="p-5 rounded-2xl bg-gradient-to-b from-slate-950 to-indigo-950/40 border border-indigo-900/60 space-y-4 animate-in slide-in-from-bottom-2 duration-300">
-                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-                        Formal AI Recommendation Memo
-                      </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-950 text-blue-300 border border-blue-800">
-                        {schedulerResult.id}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-slate-400">
-                      From: <strong>{schedulerResult.requesterName}</strong>
-                    </span>
+                <div className={`max-w-[85%] space-y-2.5 ${isUser ? 'items-end' : 'items-start'}`}>
+                  <div
+                    className={`p-3.5 rounded-2xl text-xs leading-relaxed whitespace-pre-line shadow-sm ${
+                      isUser
+                        ? 'bg-blue-600 text-white rounded-tr-none'
+                        : 'bg-slate-950 border border-slate-800 text-slate-200 rounded-tl-none'
+                    }`}
+                  >
+                    {msg.text}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                      <span className="text-[10px] font-bold uppercase text-slate-500 block">
-                        Recommended Date
-                      </span>
-                      <span className="text-sm font-extrabold text-cyan-400 block mt-0.5">
-                        {schedulerResult.recommendedDate}
-                      </span>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                      <span className="text-[10px] font-bold uppercase text-slate-500 block">
-                        Recommended Batch Total
-                      </span>
-                      <span className="text-sm font-extrabold text-emerald-400 block mt-0.5">
-                        {centsToDollars(schedulerResult.recommendedAmountCents)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs space-y-1">
-                    <div className="font-bold text-slate-300 flex items-center gap-1.5">
-                      <Coins className="w-3.5 h-3.5 text-amber-400" />
-                      <span>PayPal Fee Optimization Rationale:</span>
-                    </div>
-                    <p className="text-slate-300 text-[11px] leading-relaxed">
-                      {schedulerResult.feeOptimizationNote}
-                    </p>
-                  </div>
-
-                  {/* Submission to Payments Hub Queue */}
-                  {hasPushedToQueue ? (
-                    <div className="p-3.5 rounded-xl bg-emerald-950/80 border border-emerald-800 text-emerald-200 text-xs flex items-center justify-between">
-                      <div className="flex items-center gap-2 font-bold">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        <span>Pinned to Payments Hub Queue!</span>
-                      </div>
-                      <span className="text-[10px] font-mono text-emerald-300">Ready for Lead</span>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handlePushToQueue}
-                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition shadow-lg shadow-emerald-900/30 cursor-pointer"
-                    >
-                      <Send className="w-4 h-4" />
-                      <span>Push Recommendation to Studio Payments Queue</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 2: STRATEGIC STUDIO ADVISORY */}
-          {activeMode === 'advisory' && (
-            <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Preset Strategy Chips */}
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                  Recommended Advisory Topics
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {presetTopics.map((p, idx) => {
-                    const Icon = p.icon;
-                    const isSelected = selectedTopic === p.title;
-
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleSelectPreset(p)}
-                        className={`p-3 rounded-xl border text-left text-xs transition flex flex-col justify-between space-y-2 cursor-pointer ${
-                          isSelected
-                            ? 'border-cyan-500 bg-cyan-950/40 text-cyan-200'
-                            : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4 text-cyan-400" />
-                        <span className="font-semibold text-white leading-tight">{p.title}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Context Banner */}
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
-                <span className="text-slate-400">Current Studio Context:</span>
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="text-slate-300">
-                    Active Epoch: <strong className="text-white">{activeEpoch.version}</strong>
-                  </span>
-                  <span className="text-slate-300">
-                    Pending Reserve: <strong className="text-amber-400">{centsToDollars(pendingReserveCents)}</strong>
-                  </span>
-                </div>
-              </div>
-
-              {/* Question Box */}
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                  Ask the Studio Advisor
-                </label>
-                <textarea
-                  value={customQuestion}
-                  onChange={(e) => setCustomQuestion(e.target.value)}
-                  rows={3}
-                  placeholder="Ask anything regarding team splits, Steam refunds, or PayPal fees..."
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-cyan-500"
-                />
-                <button
-                  onClick={handleGetAdvice}
-                  disabled={isLoading || !customQuestion.trim()}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold transition shadow-lg shadow-cyan-600/20 disabled:opacity-50 cursor-pointer"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Gemini 3.5 Flash Synthesizing Advisory...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Get Strategic AI Advice</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {error && (
-                <div className="p-4 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-xs">
-                  {error}
-                </div>
-              )}
-
-              {/* Advice Output */}
-              {adviceResult && (
-                <div className="space-y-4 animate-in fade-in duration-300">
-                  <div className="p-4 rounded-2xl bg-cyan-950/30 border border-cyan-800/60 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-300">
-                        <Lightbulb className="w-4 h-4 text-cyan-400" />
-                        <span>Executive Recommendation</span>
-                      </div>
-                      <span className="text-[10px] font-mono text-cyan-400 font-bold">
-                        Confidence: {adviceResult.confidenceScore}%
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-100 font-semibold leading-relaxed">
-                      {adviceResult.executiveSummary}
-                    </p>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-blue-400" />
-                      <span>Strategic & Industry Analysis</span>
-                    </div>
-                    <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">
-                      {adviceResult.strategicInsight}
-                    </p>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5">
-                    <div className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Recommended Action Steps</span>
-                    </div>
-                    <div className="space-y-2">
-                      {adviceResult.actionSteps.map((step, idx) => (
-                        <div
+                  {/* Interactive Quick Option Pills (e.g. Attribution Choices) */}
+                  {!isUser && msg.quickOptions && msg.quickOptions.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1 animate-in fade-in duration-200">
+                      {msg.quickOptions.map((opt, idx) => (
+                        <button
                           key={idx}
-                          className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-200 flex items-start gap-2.5"
+                          onClick={() => handleSendMessage(opt.value)}
+                          disabled={isLoading}
+                          className="px-3 py-1.5 rounded-full bg-slate-800/90 hover:bg-blue-600 text-slate-200 hover:text-white border border-slate-700/80 text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
                         >
-                          <span className="w-5 h-5 rounded-full bg-emerald-950 border border-emerald-800 text-emerald-400 font-bold flex items-center justify-center shrink-0 text-[10px]">
-                            {idx + 1}
-                          </span>
-                          <span>{step}</span>
-                        </div>
+                          <span>{opt.label}</span>
+                        </button>
                       ))}
                     </div>
-                  </div>
+                  )}
 
-                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-1.5 text-xs">
-                    <div className="font-bold text-slate-300 flex items-center gap-2">
-                      <Coins className="w-4 h-4 text-amber-400" />
-                      <span>Financial & Fee Impact</span>
+                  {/* Interactive Payout Recommendation Memo Card */}
+                  {!isUser && msg.payoutProposal && (
+                    <div className="p-4 rounded-xl bg-slate-950 border border-indigo-900/60 shadow-lg shadow-indigo-950/20 space-y-3 animate-in slide-in-from-bottom-2 duration-300">
+                      <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-400">
+                          <CalendarClock className="w-3.5 h-3.5" />
+                          <span>Payout Recommendation Memo</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-500">
+                          {msg.payoutProposal.id}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800/80">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Recommended Date</span>
+                          <span className="font-extrabold text-cyan-300 block mt-0.5">
+                            {msg.payoutProposal.recommendedDate}
+                          </span>
+                        </div>
+                        <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800/80">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Batch Amount</span>
+                          <span className="font-extrabold text-emerald-400 block mt-0.5">
+                            {centsToDollars(msg.payoutProposal.recommendedAmountCents)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] text-slate-400 space-y-1">
+                        <div>
+                          <strong className="text-slate-300">Attribution:</strong> {msg.payoutProposal.requesterName}
+                        </div>
+                        <div className="text-[10px] text-slate-500 flex items-start gap-1">
+                          <Coins className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+                          <span>{msg.payoutProposal.feeOptimizationNote}</span>
+                        </div>
+                      </div>
+
+                      {submittedProposalIds.has(msg.payoutProposal.id) ? (
+                        <div className="p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-800 text-emerald-200 text-xs flex items-center justify-center gap-1.5 font-bold">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          <span>Submitted to Payments Queue (Pinned for Marcus)</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handlePushProposal(msg.payoutProposal!)}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition shadow-md shadow-emerald-900/30 cursor-pointer active:scale-95"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Submit to Payments Hub Queue</span>
+                        </button>
+                      )}
                     </div>
-                    <p className="text-slate-300 leading-relaxed">{adviceResult.financialImpact}</p>
+                  )}
+
+                  <div className={`text-[10px] text-slate-500 font-mono px-1 ${isUser ? 'text-right' : 'text-left'}`}>
+                    {msg.timestamp}
                   </div>
                 </div>
-              )}
+
+                {isUser && (
+                  <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-sm shrink-0">
+                    {currentMember.avatar}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Typing Indicator */}
+          {isLoading && (
+            <div className="flex gap-3 items-center animate-in fade-in duration-150">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shrink-0 shadow-md">
+                <Bot className="w-4 h-4" />
+              </div>
+              <div className="p-3 rounded-2xl rounded-tl-none bg-slate-950 border border-slate-800 text-xs text-slate-400 flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                <span>FairSplit AI is thinking...</span>
+              </div>
             </div>
           )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Starter Suggestion Chips (shown when 1 message in chat) */}
+        {messages.length === 1 && !isLoading && (
+          <div className="px-5 py-2 border-t border-slate-800/60 bg-slate-950/40 space-y-1.5">
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Suggested Prompts</span>
+            <div className="flex flex-wrap gap-1.5">
+              {starterSuggestions.map((suggestion, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSendMessage(suggestion)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white text-[11px] transition cursor-pointer text-left truncate max-w-full"
+                >
+                  💬 {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Chat Input Bar */}
+        <div className="p-4 border-t border-slate-800 bg-slate-950/90">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSendMessage();
+            }}
+            className="flex items-center gap-2"
+          >
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Ask anything or say 'Can we make the payout earlier?'..."
+              disabled={isLoading}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={!inputValue.trim() || isLoading}
+              className="p-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-blue-600/20 active:scale-95"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
+          <div className="flex items-center justify-between text-[10px] text-slate-500 px-1 mt-2">
+            <span>Powered by Gemini 3.5 Flash & PayPal Payouts API</span>
+            <span>Press Enter to send</span>
+          </div>
         </div>
       </div>
     </div>
