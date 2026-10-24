@@ -108,7 +108,7 @@ function createSeedInflow(
 export const INITIAL_INFLOWS: Inflow[] = [
   createSeedInflow(
     'INF-001',
-    'Steam Early Access Launch Batch',
+    'itch.io Direct Launch Batch (Digital Deluxe)',
     2500.0,
     '2026-10-15T18:30:00.000Z',
     'ORD-PAYPAL-STEAM-9182',

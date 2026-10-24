@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "test": "node --no-warnings --loader ./tests/loader.mjs --experimental-strip-types --test tests/fairsplit.test.ts",
     "build:worker": "opennextjs-cloudflare build",
     "deploy:worker": "opennextjs-cloudflare deploy",
     "start": "next start",

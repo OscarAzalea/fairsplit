@@ -1,4 +1,4 @@
-import { ChainVerificationResult, Epoch, EpochSplit, ForensicAttribution, MemberRole, RatificationSignature } from './types';
+import type {  ChainVerificationResult, Epoch, EpochSplit, ForensicAttribution, MemberRole, RatificationSignature  } from './types';
 
 /**
  * Pure TypeScript SHA-256 implementation for synchronous execution
@@ -189,7 +189,7 @@ function analyzeTamperForensics(
         confidence: 'HIGH',
         tamperType: 'UNAUTHORIZED_EQUITY_INFLATION',
         evidence: `Unilateral split modification detected in Epoch ${epoch.version}. ${suspect.name} gained +${(suspect.gainBps / 100).toFixed(1)}% equity without matching consensus signatures from peer roles.`,
-        verdict: `Attribution: Confirmed (High Confidence). Suspect is the sole beneficiary of unauthorized ledger inflation.`,
+        verdict: `Financial Anomaly Analysis: Primary Beneficiary Identified. ${suspect.name} gained +${(suspect.gainBps / 100).toFixed(1)}% equity. Note: Beneficiary analysis flags who received surplus allocation, but cryptographic mismatch alone does not prove author identity.`,
       };
     }
 
@@ -202,7 +202,7 @@ function analyzeTamperForensics(
         confidence: 'HIGH',
         tamperType: 'UNAUTHORIZED_EQUITY_INFLATION',
         evidence: `Equity redistribution in Epoch ${epoch.version} favors ${suspect.name} (+${(suspect.gainBps / 100).toFixed(1)}%). The cryptographic block hash does not match the payload certified by counter-parties.`,
-        verdict: `Attribution: Confirmed (High Confidence). Unratified balance shift directed into ${suspect.role.toUpperCase()}'s account.`,
+        verdict: `Financial Anomaly Analysis: Primary Beneficiary Identified. Unratified balance shift favors ${suspect.role.toUpperCase()} (+${(suspect.gainBps / 100).toFixed(1)}%). Note: Beneficiary analysis flags who received surplus allocation, but cryptographic mismatch alone does not prove author identity.`,
       };
     }
 

@@ -1,4 +1,4 @@
-import { EpochSplit, InflowAllocation, MemberRole } from './types';
+import type {  EpochSplit, InflowAllocation, MemberRole  } from './types';
 
 export const TOTAL_BPS = 10000; // 100.00%
 

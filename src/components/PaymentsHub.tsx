@@ -62,7 +62,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
   currentMember,
 }) => {
   // Inflow Simulator State
-  const [selectedPreset, setSelectedPreset] = useState<'steam' | 'bandcamp' | 'patreon' | 'custom'>('steam');
+  const [selectedPreset, setSelectedPreset] = useState<'steam' | 'itch' | 'bandcamp' | 'patreon' | 'custom'>('itch');
   const [inflowSource, setInflowSource] = useState<string>('Steam Early Access Launch Batch');
   const [inflowGrossDollars, setInflowGrossDollars] = useState<number>(2500.0);
   const [inflowSuccessOrderId, setInflowSuccessOrderId] = useState<string | null>(null);
@@ -84,12 +84,12 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
     reserveReallocations[reserveReallocations.length - 1]?.epochHash === activeEpoch.hash;
 
   // Handle Preset Inflow Selection
-  const handleSelectPreset = (preset: 'steam' | 'bandcamp' | 'patreon' | 'custom') => {
+  const handleSelectPreset = (preset: 'steam' | 'itch' | 'bandcamp' | 'patreon' | 'custom') => {
     setSelectedPreset(preset);
     setInflowSuccessOrderId(null);
     if (preset === 'steam') {
-      setInflowSource('Steam Sale Batch - Milestone 2 Expansion');
-      setInflowGrossDollars(2500.0);
+      setInflowSource('itch.io Direct Customer Purchase (Deluxe Edition)');
+      setInflowGrossDollars(49.99);
     } else if (preset === 'bandcamp') {
       setInflowSource('Bandcamp Deluxe OST & Stems Pack');
       setInflowGrossDollars(450.0);
@@ -302,15 +302,15 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 type="button"
-                onClick={() => handleSelectPreset('steam')}
+                onClick={() => handleSelectPreset('itch')}
                 className={`p-2.5 rounded-xl border text-left text-xs transition ${
-                  selectedPreset === 'steam'
+                  selectedPreset === 'itch'
                     ? 'border-blue-500 bg-blue-950/40 text-blue-200'
                     : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
                 }`}
               >
-                <div className="font-bold truncate">Steam Batch</div>
-                <div className="text-[11px] text-slate-400">$2,500.00</div>
+                <div className="font-bold truncate">itch.io Direct</div>
+                <div className="text-[11px] text-slate-400">$49.99</div>
               </button>
 
               <button

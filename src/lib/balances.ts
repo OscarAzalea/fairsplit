@@ -1,4 +1,4 @@
-import { Inflow, MemberRole, PayoutBatch, ReserveReallocation } from './types';
+import type {  Inflow, MemberRole, PayoutBatch, ReserveReallocation  } from './types';
 
 export const MEMBER_ROLES: MemberRole[] = ['dev', 'artist', 'writer', 'composer'];
 

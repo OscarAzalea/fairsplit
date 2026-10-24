@@ -167,8 +167,8 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-white">
                     {verification.forensics.confidence === 'HIGH'
-                      ? 'Anti-Tamper Forensics: Malicious Actor Identified'
-                      : 'Anti-Tamper Forensics: Attribution Inconclusive'}
+                      ? 'Cryptographic Hash Mismatch & Beneficiary Anomaly'
+                      : 'Cryptographic Hash Mismatch: Inconclusive Beneficiary'}
                   </h3>
                   <span
                     className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -181,7 +181,7 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-slate-300/90 mt-0.5">
-                  Cryptographic forensic engine only attributes suspects when 100% mathematically proven.
+                  SHA-256 mismatch mathematically proves payload tampering. Anomaly analysis flags the recipient of surplus equity.
                 </p>
               </div>
             </div>
@@ -196,7 +196,7 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             <div className="p-3.5 rounded-xl bg-slate-950/60 border border-white/10 space-y-1.5">
               <span className="text-[10px] uppercase font-bold text-slate-400">
-                Suspect / Beneficiary Attribution
+                Primary Beneficiary (Financial Anomaly Heuristic)
               </span>
               {verification.forensics.suspectName ? (
                 <div className="flex items-center gap-2 text-red-300 font-bold text-sm">

@@ -1,4 +1,4 @@
-import { PayoutItem, PayoutStatus } from './types';
+import type { PayoutItem, PayoutStatus } from './types';
 import { centsToDollars } from './fairsplit-math';
 
 export interface PayPalOrderResponse {

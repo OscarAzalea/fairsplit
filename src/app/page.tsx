@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from '@/components/Header';
 import { AgreementStudio } from '@/components/AgreementStudio';
 import { TrustLedger } from '@/components/TrustLedger';
@@ -38,6 +38,7 @@ export default function FairSplitApp() {
 
   const [isTampered, setIsTampered] = useState<boolean>(false);
   const [backupEpochs, setBackupEpochs] = useState<Epoch[] | null>(null);
+
 
   // AI Payout Recommendations Queue (Peer Liquidity Mediation)
   const [payoutRecommendations, setPayoutRecommendations] = useState<PayoutRecommendation[]>([
