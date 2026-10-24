@@ -177,6 +177,10 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
   });
   const splitTotalBps = members.reduce((sum, member) => sum + splits[member.id], 0);
   const splitsAreValid = splitTotalBps === TOTAL_BPS;
+  const currentEpochSplits: Record<MemberRole, number> = { dev: 0, artist: 0, writer: 0, composer: 0 };
+  activeEpoch.splits.forEach(({ memberId, bps }) => {
+    currentEpochSplits[memberId] = bps;
+  });
 
   // Start Ratification with auto-scroll
   const handleStartProposal = () => {
@@ -863,7 +867,7 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         members={members}
-        currentSplits={splits}
+        currentSplits={currentEpochSplits}
         proposedSplits={splits}
         onApplyCompromise={(newSplits) => {
           setSplits(newSplits);

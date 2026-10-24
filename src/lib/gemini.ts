@@ -59,7 +59,7 @@ CRITICAL: The sum of dev, artist, writer, and composer in compromiseSplits MUST 
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(7000),
+          signal: AbortSignal.timeout(20000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {

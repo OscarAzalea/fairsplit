@@ -1,34 +1,41 @@
-# FairSplit judge demo
+# FairSplit: under-three-minute judge video
 
-Aim for a recording under three minutes. Start with **Reset demo** so the seeded example is visible.
+Record the live [Cloudflare demo](https://fairsplit.horusosiris404-210.workers.dev/) in a browser. Use short clips and trim loading or sign-in pauses. Keep the browser large enough to read names, amounts, and the integration status bar. The payout feature is a simulator, so never describe it as a PayPal transfer.
 
-## Short walkthrough
+## Before recording
 
-**0:00–0:20 — The problem**  
-Creative teams often track shared revenue in spreadsheets. FairSplit ties each captured inflow to a versioned split agreement so the team can inspect the math and history.
+1. Click **Reset demo**. Check that the active agreement is **v1.0**, with Alex **40%** and Elena **30%**. In Collaborator Balances, the seeded pending amounts should be Alex **$1,072.63** and Elena **$804.48**. Reset clears prior local demo activity; it does not alter the Cloudflare deployment.
+2. Have a **PayPal Sandbox buyer account** ready. Use it only on PayPal's Sandbox sign-in screen. Do not show its password, API keys, or production PayPal account in the video.
+3. Use a small custom checkout amount, such as **$1.00**, for the capture clip. If buyer approval cannot be completed, omit any claim that a capture happened. Show the Sandbox checkout button and label this as an uncompleted checkout instead.
+4. Rehearse the Gemini request before recording. Use the actual **Gemini API result** badge only when it appears. The app may show **Local heuristic fallback** when Gemini is slow or unavailable; keep that label truthful if it appears.
 
-**0:20–0:55 — Agreement and AI**  
-Change one collaborator's share in Agreement Studio and show that the allocation remains at 10,000 basis points. Open the Socratic mediator. Point out the result label: **Gemini API result** means the Gemini request returned a valid proposal; **Local heuristic fallback** means the local fallback answered. The proposed split is checked before it can be adopted.
+## Shot list and narration
 
-**0:55–1:20 — Demo approval and history**
-Set Elena to 55% and Alex to 25%, then use the four-member demo approval flow. Show that the existing unpaid reserve is immediately redistributed and Elena's pending balance exceeds Alex's. The browser session has no real user authentication or legally binding signatures. Open Trust Ledger and verify the hash links.
+| Time | On screen | Say this |
+| --- | --- | --- |
+| 0:00–0:15 | Collaborator Balances, seeded Alex and Elena cards. | “When a creative team shares revenue, changing the agreement can make unpaid balances hard to explain. FairSplit gives the team a versioned agreement and an auditable balance.” |
+| 0:15–0:50 | Agreement Studio. Tap the four numbers and enter Alex **25**, Elena **55**, Marcus **15**, Lyra **5**. Show the **100%** total. Open **Socratic AI Mediator**, select Elena, enter the rationale below, and show the provider badge and response. | “Elena’s art scope grew, so I propose 55 percent for her and 25 for Alex. The shares must add to 100 percent. Gemini examines the trade-offs and suggests questions; it does not change the contract itself.” |
+| 0:50–1:15 | Close the mediator. Click **Propose New Epoch**. Enter the title and rationale below. Click **Sandbox: Auto-Fill Peer Signatures (Testing Only)**. Show **v2.0** active. | “This is a demo approval flow. It records the revised agreement in a SHA-256 linked history. These approval slots are simulated, not authenticated signatures.” |
+| 1:15–1:40 | Collaborator Balances: show Elena **$1,474.87** above Alex **$670.39**. Then Trust Ledger: show v1.0 and v2.0, and click **Check Epoch Hashes**. | “The unpaid reserve now follows the new agreement: Elena’s pending balance exceeds Alex’s. Earlier inflows still show which agreement was active when they arrived, and the epoch hashes verify.” |
+| 1:40–2:20 | Payments Hub. Choose **Custom Amount**, enter **$1.00**, open checkout, then use the PayPal Sandbox buyer account. Trim the sign-in pause. Show the completed receipt with PayPal order and capture IDs, then its Sandbox entry in Trust Ledger. | “This checkout goes through PayPal Sandbox. FairSplit records the inflow only after PayPal confirms capture, and links the returned IDs to the active agreement.” |
+| 2:20–2:40 | Payments Hub payout section. Show the selected collaborators and **Inspect Raw PayPal Payouts JSON Payload**; optionally show a demo batch report. | “Payouts are a preview and simulation here. The app calculates each person’s amount in integer cents, but sends no payout money.” |
+| 2:40–2:50 | Return to the active split or balances. | “FairSplit makes split changes, captured revenue, and the remaining balance visible to the whole team.” |
 
-With the untouched seeded ledger and the remaining shares set to Marcus 15% and Lyra 5%, expected pending balances are **Elena $1,474.87** and **Alex $670.39** (total reserve **$2,681.58**). A $1,000 demo inflow adds $533.29 to Elena and $242.40 to Alex. **Clear Demo Activity** restores the seeded balances while keeping the 55/25 split active.
+**Mediator rationale:** “Elena completed expanded art and 3D work for this milestone. Review a fair change to the revenue split and the effect on the rest of the team.”
 
-**1:20–2:05 — PayPal checkout**  
-If Sandbox credentials are configured, choose a preset, open checkout, approve it using a PayPal Sandbox buyer account, and show the PayPal-returned order and capture IDs in the receipt and ledger. If credentials are absent, use **Run demo capture** and say clearly that it is simulated. The app never charges a live PayPal account.
+If the mediator badge says **Local heuristic fallback**, replace the Gemini narration with: “The AI request fell back to a labeled local suggestion; a human still decides whether to revise the agreement.” Record a separate successful Gemini response before claiming the Gemini call worked in this scene.
 
-**2:05–2:35 — Balances and payout preview**  
-Show the integer-cent allocation and explain why sample payout deductions can make historical totals differ from the active percentage. Inspect the payout batch payload and run **Simulate payout batch**. State clearly that payouts are simulated and no funds are sent.
+The mediator may suggest a compromise different from 25/55/15/5. Show its trade-offs, then close it without clicking **Adopt This Compromise** if the next scene demonstrates the team's proposed 25/55/15/5. Describe the following approval as a *demo* of the team's decision, not as proof that four real people consented.
 
-**2:35–2:50 — Close**  
-Return to the seeded state with **Reset demo**.
+**Epoch title:** “Art expansion: revised team split”
 
-## Recording checklist
+**Epoch rationale:** “Demo proposal: increase Elena’s share for expanded art work and redistribute the unclaimed reserve.”
 
-- Use a clean browser window at a readable zoom level.
-- Keep the integration status bar visible so judges can see Gemini, checkout, and payout modes.
-- If recording a real Sandbox checkout, sign in with a Sandbox buyer account, not a personal production account.
-- Distinguish seeded sample data, real PayPal Sandbox captures, and simulated payouts.
-- Keep API keys and server logs out of the recording.
-- Publish a public YouTube demo under three minutes and include the public repository, MIT license, and hosted demo in the submission.
+The balance amounts above assume an untouched seeded ledger and no new checkout. The seeded net reserve totals **$2,681.58**; it includes sample payout deductions. After a Sandbox capture, balances change. Do not read the seeded amounts as the final amounts after checkout.
+
+## Final check
+
+- Keep the published video **under three minutes** and make the YouTube link public.
+- Show the app in a browser, with readable text and the status bar visible.
+- Distinguish seeded examples, a completed PayPal **Sandbox** capture, Gemini or its labeled fallback, and simulated payouts.
+- Put the live demo URL and public GitHub repository in the video description and hackathon submission.

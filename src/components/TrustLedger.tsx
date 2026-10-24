@@ -62,7 +62,7 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
             This browser session links agreement versions by SHA-256 hash. Each recorded inflow
-            stores the agreement active at capture; the demo data resets when the page reloads.
+            stores the agreement active at capture. Demo data stays in this browser until Reset demo.
           </p>
         </div>
 

@@ -52,6 +52,11 @@ export const IntegrationStatusBar: React.FC = () => {
           ? 'Checkout status unavailable'
           : 'Checking checkout…';
 
+  const resetDemo = () => {
+    localStorage.removeItem('fairsplit_app_state_v1');
+    window.location.reload();
+  };
+
   return (
     <div className="border-b border-slate-800 bg-slate-950/90">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center justify-between gap-2">
@@ -71,7 +76,7 @@ export const IntegrationStatusBar: React.FC = () => {
         </div>
         <button
           type="button"
-          onClick={() => window.location.reload()}
+          onClick={resetDemo}
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-700 bg-slate-900 text-[10px] font-semibold text-slate-300 hover:text-white hover:border-slate-500 transition"
           aria-label="Reset demo and restore the seeded example data"
           title="Restore the seeded demo data"
