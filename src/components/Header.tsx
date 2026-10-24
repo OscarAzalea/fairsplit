@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
-import { ShieldCheck, Sparkles, RefreshCw, Layers, DollarSign, Wallet, Bot } from 'lucide-react';
-import { Epoch } from '@/lib/types';
+import React, { useState, useRef, useEffect } from 'react';
+import { ShieldCheck, Sparkles, RefreshCw, Layers, DollarSign, Wallet, Bot, ChevronDown, Check, UserCheck } from 'lucide-react';
+import { Epoch, Member, MemberRole } from '@/lib/types';
 import { centsToDollars } from '@/lib/fairsplit-math';
 
 interface HeaderProps {
@@ -15,6 +15,9 @@ interface HeaderProps {
   isVerifyingChain: boolean;
   onVerifyChain: () => void;
   onOpenAdvisor: () => void;
+  currentMember: Member;
+  members: Member[];
+  onSwitchMember: (role: MemberRole) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,7 +30,23 @@ export const Header: React.FC<HeaderProps> = ({
   isVerifyingChain,
   onVerifyChain,
   onOpenAdvisor,
+  currentMember,
+  members,
+  onSwitchMember,
 }) => {
+  const [isSessionDropdownOpen, setIsSessionDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsSessionDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const pendingCents = totalNetCents - totalPaidCents;
 
@@ -76,9 +95,70 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Active Epoch & Verification status */}
+          {/* Active Epoch, Session Switcher & Action buttons */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 text-xs font-medium">
+            {/* Authenticated Persona Switcher */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsSessionDropdownOpen(!isSessionDropdownOpen)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-850 border border-slate-700/80 text-xs font-medium text-slate-200 transition cursor-pointer shadow-sm hover:border-blue-500/50"
+                title="Switch simulated logged-in persona for demo evaluation"
+              >
+                <span className="text-sm">{currentMember.avatar}</span>
+                <div className="hidden sm:flex flex-col text-left leading-tight">
+                  <span className="text-[10px] text-slate-400 font-mono">Logged In:</span>
+                  <span className="font-bold text-white truncate max-w-[110px]">{currentMember.name.split(' ')[0]} ({currentMember.roleTitle.split(' ')[0]})</span>
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isSessionDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Dropdown Menu */}
+              {isSessionDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-64 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="px-2.5 py-1.5 border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                    <span>Authenticated Persona</span>
+                    <span className="text-emerald-400 flex items-center gap-1 font-mono">
+                      <UserCheck className="w-3 h-3" /> Active
+                    </span>
+                  </div>
+                  <div className="py-1 space-y-0.5">
+                    {members.map((m) => {
+                      const isActive = m.id === currentMember.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => {
+                            onSwitchMember(m.id);
+                            setIsSessionDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between p-2 rounded-lg text-xs text-left transition cursor-pointer ${
+                            isActive
+                              ? 'bg-blue-950/80 text-white font-bold border border-blue-800/80'
+                              : 'text-slate-300 hover:bg-slate-800/60 hover:text-white border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{m.avatar}</span>
+                            <div>
+                              <div className="font-semibold">{m.name}</div>
+                              <div className="text-[10px] text-slate-400">{m.roleTitle}</div>
+                            </div>
+                          </div>
+                          {isActive && <Check className="w-4 h-4 text-cyan-400" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="px-2 py-1.5 border-t border-slate-800 text-[10px] text-slate-500">
+                    Switching changes who you act as across all contracts & AI requests.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 text-xs font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>Active: {activeEpoch.version}</span>
             </div>

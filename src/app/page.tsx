@@ -9,7 +9,7 @@ import { PaymentsHub } from '@/components/PaymentsHub';
 import { StudioAdvisorDrawer } from '@/components/StudioAdvisorDrawer';
 import { GENESIS_EPOCH, INITIAL_INFLOWS, INITIAL_PAYOUT_BATCHES, MEMBERS } from '@/lib/initial-data';
 
-import { Epoch, Inflow, PayoutBatch, PayoutRecommendation } from '@/lib/types';
+import { Epoch, Inflow, PayoutBatch, PayoutRecommendation, MemberRole } from '@/lib/types';
 import { verifyEpochChain } from '@/lib/crypto';
 import { ShieldCheck, Sparkles, Layers, DollarSign, Wallet } from 'lucide-react';
 
@@ -20,6 +20,10 @@ export default function FairSplitApp() {
   const [payoutBatches, setPayoutBatches] = useState<PayoutBatch[]>(INITIAL_PAYOUT_BATCHES);
   const [activeTab, setActiveTab] = useState<'studio' | 'ledger' | 'balances' | 'payments'>('studio');
   const [isAdvisorOpen, setIsAdvisorOpen] = useState<boolean>(false);
+
+  // Authenticated Session Persona (defaults to Elena Vance, Artist)
+  const [currentMemberId, setCurrentMemberId] = useState<MemberRole>('artist');
+  const currentMember = MEMBERS.find((m) => m.id === currentMemberId) || MEMBERS[1];
 
 
   const [isVerifyingChain, setIsVerifyingChain] = useState<boolean>(false);
@@ -149,6 +153,9 @@ export default function FairSplitApp() {
         isVerifyingChain={isVerifyingChain}
         onVerifyChain={handleVerifyChain}
         onOpenAdvisor={() => setIsAdvisorOpen(true)}
+        currentMember={currentMember}
+        members={MEMBERS}
+        onSwitchMember={(role) => setCurrentMemberId(role)}
       />
 
 
@@ -181,6 +188,7 @@ export default function FairSplitApp() {
             activeEpoch={activeEpoch}
             epochs={epochs}
             onNewEpochRatified={handleNewEpochRatified}
+            currentMember={currentMember}
           />
         )}
 
@@ -203,6 +211,7 @@ export default function FairSplitApp() {
             inflows={inflows}
             payoutBatches={payoutBatches}
             onNavigateToPayouts={() => setActiveTab('payments')}
+            currentMember={currentMember}
           />
         )}
 
@@ -217,6 +226,7 @@ export default function FairSplitApp() {
             payoutRecommendations={payoutRecommendations}
             onDismissRecommendation={handleDismissRecommendation}
             onPreloadBatch={() => setActiveTab('payments')}
+            currentMember={currentMember}
           />
         )}
       </main>
@@ -229,6 +239,7 @@ export default function FairSplitApp() {
         pendingReserveCents={totalNetCents - totalPaidCents}
         inflowsCount={inflows.length}
         onPushRecommendation={handlePushRecommendation}
+        currentMember={currentMember}
       />
 
 

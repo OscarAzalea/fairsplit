@@ -43,6 +43,7 @@ interface PaymentsHubProps {
   payoutRecommendations?: PayoutRecommendation[];
   onDismissRecommendation?: (id: string) => void;
   onPreloadBatch?: (rec: PayoutRecommendation) => void;
+  currentMember?: Member;
 }
 
 export const PaymentsHub: React.FC<PaymentsHubProps> = ({
@@ -55,6 +56,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
   payoutRecommendations = [],
   onDismissRecommendation,
   onPreloadBatch,
+  currentMember,
 }) => {
   // Inflow Simulator State
   const [selectedPreset, setSelectedPreset] = useState<'steam' | 'bandcamp' | 'patreon' | 'custom'>('steam');

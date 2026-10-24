@@ -17,9 +17,10 @@ import {
   Send,
   ArrowRight,
   Shield,
+  ShieldCheck,
   Layers,
 } from 'lucide-react';
-import { Epoch, StudioAdviceResult, PayoutRecommendation } from '@/lib/types';
+import { Epoch, Member, StudioAdviceResult, PayoutRecommendation } from '@/lib/types';
 import { centsToDollars } from '@/lib/fairsplit-math';
 
 interface StudioAdvisorDrawerProps {
@@ -29,6 +30,7 @@ interface StudioAdvisorDrawerProps {
   pendingReserveCents: number;
   inflowsCount: number;
   onPushRecommendation?: (rec: PayoutRecommendation) => void;
+  currentMember: Member;
 }
 
 export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
@@ -38,6 +40,7 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
   pendingReserveCents,
   inflowsCount,
   onPushRecommendation,
+  currentMember,
 }) => {
   // Mode Toggle: 'advisory' vs 'scheduler'
   const [activeMode, setActiveMode] = useState<'advisory' | 'scheduler'>('scheduler');
@@ -52,7 +55,6 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Collaborator Smart Payout Scheduler State
-  const [requesterName, setRequesterName] = useState<string>('Elena Vance (Art Director)');
   const [isAnonymous, setIsAnonymous] = useState<boolean>(true);
   const [collaboratorNeed, setCollaboratorNeed] = useState<string>(
     'Upcoming personal rent expenses and completed character modeling milestone deliverables.'
@@ -124,13 +126,18 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
     setError(null);
     setHasPushedToQueue(false);
 
+    const displayName = isAnonymous
+      ? 'Anonymous Collaborator'
+      : `${currentMember.name} (${currentMember.roleTitle})`;
+
     try {
       const res = await fetch('/api/payout-recommendation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          requesterName,
+          requesterName: displayName,
           isAnonymous,
+          requesterRole: isAnonymous ? undefined : currentMember.id,
           reasonOrNeed: collaboratorNeed,
           pendingCents: pendingReserveCents,
           activeEpoch,
@@ -230,32 +237,36 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
                 </p>
               </div>
 
-              {/* Persona Selector */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
-                  I am requesting as:
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { label: 'Elena Vance (Artist)', role: 'artist', avatar: '🎨' },
-                    { label: 'Marcus Chen (Writer)', role: 'writer', avatar: '✍️' },
-                    { label: 'Lyra Song (Composer)', role: 'composer', avatar: '🎵' },
-                    { label: 'Alex Mercer (Lead Dev)', role: 'dev', avatar: '👨‍💻' },
-                  ].map((p, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setRequesterName(p.label)}
-                      className={`p-2.5 rounded-xl border text-left text-xs transition flex items-center gap-2 cursor-pointer ${
-                        requesterName === p.label
-                          ? 'border-blue-500 bg-blue-950/50 text-white font-bold'
-                          : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
-                      }`}
-                    >
-                      <span className="text-base">{p.avatar}</span>
-                      <span className="truncate">{p.label}</span>
-                    </button>
-                  ))}
+              {/* Authenticated Identity Anchor (Zero Spoofing) */}
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <span className="flex items-center gap-1.5 text-emerald-400">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Authenticated Requester Session
+                  </span>
+                  <span className="font-mono text-slate-500">ID: {currentMember.id}</span>
+                </div>
+
+                <div className="flex items-center gap-3 pt-0.5">
+                  <div className="text-2xl">{currentMember.avatar}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white truncate">{currentMember.name}</span>
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-950 text-blue-300 border border-blue-800 shrink-0">
+                        {currentMember.roleTitle}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 font-mono truncate">
+                      {currentMember.paypalEmail}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800/80 text-[10px] text-slate-400 flex items-start gap-2">
+                  <Shield className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                  <span>
+                    <strong className="text-slate-300">Anti-Spoofing Enforced:</strong> Your request automatically binds to your logged-in session credentials. To switch personas for testing, use the session switcher in the top navigation header.
+                  </span>
                 </div>
               </div>
 
@@ -269,12 +280,12 @@ export const StudioAdvisorDrawer: React.FC<StudioAdvisorDrawerProps> = ({
                   )}
                   <div>
                     <span className="text-xs font-bold text-white block">
-                      {isAnonymous ? 'Anonymous Request Mode' : 'Attributed Request Mode'}
+                      {isAnonymous ? 'Anonymous Request Mode (Protected)' : 'Attributed Request Mode'}
                     </span>
                     <span className="text-[10px] text-slate-400">
                       {isAnonymous
-                        ? 'Your name is hidden. The team lead will only see "Anonymous Collaborator".'
-                        : `The team lead will see that ${requesterName} suggested this payout.`}
+                        ? 'Your identity is masked. The team lead will only see "Anonymous Collaborator", removing social friction.'
+                        : `The team lead will see that ${currentMember.name} (${currentMember.roleTitle}) suggested this payout.`}
                     </span>
                   </div>
                 </div>

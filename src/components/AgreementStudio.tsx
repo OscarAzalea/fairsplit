@@ -25,6 +25,7 @@ interface AgreementStudioProps {
   activeEpoch: Epoch;
   epochs: Epoch[];
   onNewEpochRatified: (newEpoch: Epoch) => void;
+  currentMember?: Member;
 }
 
 export const AgreementStudio: React.FC<AgreementStudioProps> = ({
@@ -32,6 +33,7 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
   activeEpoch,
   epochs,
   onNewEpochRatified,
+  currentMember,
 }) => {
   // Current working splits in dials (BPS)
   const [splits, setSplits] = useState<Record<MemberRole, number>>(() => {
@@ -370,7 +372,14 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
                 <div className="flex items-center gap-2.5">
                   <div className="text-2xl">{member.avatar}</div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">{member.name}</h3>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-sm font-bold text-white">{member.name}</h3>
+                      {currentMember && currentMember.id === member.id && (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">
+                          You
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-slate-400">{member.roleTitle}</p>
                   </div>
                 </div>
@@ -588,9 +597,13 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
                     <button
                       type="button"
                       onClick={() => handleSignAsMember(member.id)}
-                      className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition"
+                      className={`w-full py-2 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                        currentMember && currentMember.id === member.id
+                          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md shadow-blue-600/30 font-bold border border-blue-400/40'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                      }`}
                     >
-                      Sign as {member.name.split(' ')[0]}
+                      Sign as {member.name.split(' ')[0]} {currentMember && currentMember.id === member.id ? '(You)' : ''}
                     </button>
                   )}
                 </div>

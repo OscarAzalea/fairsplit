@@ -24,6 +24,7 @@ interface CollaboratorBalancesProps {
   inflows: Inflow[];
   payoutBatches: PayoutBatch[];
   onNavigateToPayouts: () => void;
+  currentMember?: Member;
 }
 
 export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
@@ -32,6 +33,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
   inflows,
   payoutBatches,
   onNavigateToPayouts,
+  currentMember,
 }) => {
   const [selectedAuditMember, setSelectedAuditMember] = useState<Member | null>(null);
   const [selectedCertMember, setSelectedCertMember] = useState<Member | null>(null);
@@ -126,25 +128,38 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
             pendingBalanceCents,
             inflowCount,
             activeBps,
-          }) => (
-            <div
-              key={member.id}
-              className="p-5 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col justify-between hover:border-slate-700 transition space-y-5"
-            >
-              {/* Member Header */}
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="text-3xl">{member.avatar}</div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white">{member.name}</h3>
-                    <p className="text-[11px] text-slate-400">{member.roleTitle}</p>
+          }) => {
+            const isCurrent = currentMember?.id === member.id;
+            return (
+              <div
+                key={member.id}
+                className={`p-5 rounded-2xl bg-slate-900 border flex flex-col justify-between transition space-y-5 ${
+                  isCurrent
+                    ? 'border-blue-500/80 shadow-lg shadow-blue-500/10'
+                    : 'border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                {/* Member Header */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="text-3xl">{member.avatar}</div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="text-sm font-bold text-white">{member.name}</h3>
+                        {isCurrent && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">
+                            You
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400">{member.roleTitle}</p>
+                    </div>
                   </div>
-                </div>
 
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-950 text-blue-300 border border-blue-800">
-                  {bpsToPercent(activeBps)} share
-                </span>
-              </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-950 text-blue-300 border border-blue-800">
+                    {bpsToPercent(activeBps)} share
+                  </span>
+                </div>
 
               {/* Pending Balance Spotlight */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-center space-y-1">
@@ -206,8 +221,8 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
                 </button>
               </div>
             </div>
-          )
-        )}
+            );
+          })}
       </div>
 
       {/* AI Explain Balance Modal */}
