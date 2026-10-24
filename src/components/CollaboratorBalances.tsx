@@ -372,7 +372,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
                 </span>
               </h3>
               <p className="text-[11px] text-slate-400">
-                Each sample, simulated, or Sandbox inflow records the agreement in effect when it was captured
+                Each sample, simulated, or Sandbox inflow records the agreement in effect when it was added
               </p>
             </div>
           </div>
@@ -413,6 +413,9 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
                     <tr key={inf.id} className="hover:bg-slate-850/50 transition">
                       <td className="py-3 px-3">
                         <div className="font-bold text-white">{inf.source}</div>
+                        <div className="text-[10px] font-semibold text-cyan-300">
+                          {inf.paymentMode === 'PAYPAL_SANDBOX' ? 'PayPal Sandbox capture' : inf.paymentMode === 'SIMULATED' ? 'Simulated inflow' : 'Seeded example'}
+                        </div>
                         <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
                           <span>{inf.id}</span>
                           <span>&bull;</span>
