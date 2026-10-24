@@ -111,7 +111,7 @@ export function rebalanceSplits(
   newBps: number,
   lockedMembers: Set<MemberRole> = new Set()
 ): Record<MemberRole, number> {
-  const clampedNewBps = Math.max(0, Math.min(TOTAL_BPS, Math.round(newBps)));
+  const clampedNewBps = Math.max(0, Math.min(TOTAL_BPS, Math.round(Number(newBps) || 0)));
   const roles: MemberRole[] = ['dev', 'artist', 'writer', 'composer'];
 
   // Identify unlocked members other than the changed one
@@ -127,28 +127,36 @@ export function rebalanceSplits(
   // Calculate total locked BPS
   const lockedBpsTotal = roles
     .filter((role) => lockedMembers.has(role) && role !== changedMember)
-    .reduce((sum, role) => sum + currentSplits[role], 0);
+    .reduce((sum, role) => sum + (currentSplits[role] || 0), 0);
 
   // Maximum allowed for changed member
-  const maxAllowedForChanged = TOTAL_BPS - lockedBpsTotal;
+  const maxAllowedForChanged = Math.max(0, TOTAL_BPS - lockedBpsTotal);
   const targetChangedBps = Math.min(clampedNewBps, maxAllowedForChanged);
 
-  const remainingToDistribute = TOTAL_BPS - lockedBpsTotal - targetChangedBps;
+  const remainingToDistribute = Math.max(0, TOTAL_BPS - lockedBpsTotal - targetChangedBps);
   const previousOtherUnlockedTotal = otherUnlockedRoles.reduce(
-    (sum, role) => sum + currentSplits[role],
+    (sum, role) => sum + (currentSplits[role] || 0),
     0
   );
 
   const nextSplits: Record<MemberRole, number> = { ...currentSplits };
   nextSplits[changedMember] = targetChangedBps;
 
+  if (remainingToDistribute === 0) {
+    // Everyone else unlocked becomes 0
+    otherUnlockedRoles.forEach((role) => {
+      nextSplits[role] = 0;
+    });
+    return nextSplits;
+  }
+
+  // If all other unlocked roles currently have 0 BPS, distribute evenly
   if (previousOtherUnlockedTotal === 0) {
-    // Evenly distribute among other unlocked
     const evenShare = Math.floor(remainingToDistribute / otherUnlockedRoles.length);
     let distributed = 0;
     otherUnlockedRoles.forEach((role, i) => {
       if (i === otherUnlockedRoles.length - 1) {
-        nextSplits[role] = remainingToDistribute - distributed;
+        nextSplits[role] = Math.max(0, remainingToDistribute - distributed);
       } else {
         nextSplits[role] = evenShare;
         distributed += evenShare;
@@ -161,20 +169,25 @@ export function rebalanceSplits(
       if (i === otherUnlockedRoles.length - 1) {
         nextSplits[role] = Math.max(0, remainingToDistribute - distributed);
       } else {
-        const share = Math.round(
-          (currentSplits[role] / previousOtherUnlockedTotal) * remainingToDistribute
-        );
+        const weight = (currentSplits[role] || 0) / previousOtherUnlockedTotal;
+        const share = Math.round(weight * remainingToDistribute);
         nextSplits[role] = Math.max(0, share);
         distributed += share;
       }
     });
 
-    // Fix any final 1-bps rounding drift
-    const totalNow = roles.reduce((sum, r) => sum + nextSplits[r], 0);
+    // Fix rounding drift
+    const totalNow = roles.reduce((sum, r) => sum + (nextSplits[r] || 0), 0);
     const drift = TOTAL_BPS - totalNow;
     if (drift !== 0 && otherUnlockedRoles.length > 0) {
-      nextSplits[otherUnlockedRoles[0]] += drift;
+      nextSplits[otherUnlockedRoles[0]] = Math.max(0, (nextSplits[otherUnlockedRoles[0]] || 0) + drift);
     }
+  }
+
+  // Final invariant check: Guarantee strict 10,000 BPS
+  const finalSum = roles.reduce((sum, r) => sum + (nextSplits[r] || 0), 0);
+  if (finalSum !== TOTAL_BPS && otherUnlockedRoles.length > 0) {
+    nextSplits[otherUnlockedRoles[0]] += (TOTAL_BPS - finalSum);
   }
 
   return nextSplits;

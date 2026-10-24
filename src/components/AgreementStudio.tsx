@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Lock,
   Unlock,
@@ -14,6 +14,10 @@ import {
   AlertCircle,
   Check,
   Info,
+  Plus,
+  Minus,
+  RotateCcw,
+  Sliders,
 } from 'lucide-react';
 import { Epoch, Member, MemberRole, RatificationSignature } from '@/lib/types';
 import { bpsToPercent, TOTAL_BPS, rebalanceSplits } from '@/lib/fairsplit-math';
@@ -46,6 +50,16 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
 
   const [lockedMembers, setLockedMembers] = useState<Set<MemberRole>>(new Set());
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
+  const proposalRef = useRef<HTMLDivElement>(null);
+
+  // Synchronize splits when activeEpoch updates
+  useEffect(() => {
+    const initial: Record<MemberRole, number> = { dev: 4000, artist: 3000, writer: 2000, composer: 1000 };
+    activeEpoch.splits.forEach((s) => {
+      initial[s.memberId] = s.bps;
+    });
+    setSplits(initial);
+  }, [activeEpoch]);
 
   // Ratification flow state
   const [isProposing, setIsProposing] = useState<boolean>(false);
@@ -89,23 +103,46 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
     setSplits(updated);
   };
 
+  // 1-Click Preset Allocations
+  const handleApplyPreset = (preset: Record<MemberRole, number>) => {
+    setSplits(preset);
+    setLockedMembers(new Set());
+  };
+
+  // Reset to Active Epoch baseline
+  const handleResetToActiveEpoch = () => {
+    const resetSplits: Record<MemberRole, number> = { dev: 4000, artist: 3000, writer: 2000, composer: 1000 };
+    activeEpoch.splits.forEach((s) => {
+      resetSplits[s.memberId] = s.bps;
+    });
+    setSplits(resetSplits);
+    setLockedMembers(new Set());
+    setIsProposing(false);
+  };
+
   // Check if splits differ from active epoch
   const hasChangesFromActive = members.some((m) => {
     const activeBps = activeEpoch.splits.find((s) => s.memberId === m.id)?.bps ?? 0;
     return splits[m.id] !== activeBps;
   });
 
-  // Start Ratification
+  // Start Ratification with auto-scroll
   const handleStartProposal = () => {
+    if (isProposing) {
+      proposalRef.current?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
     setIsProposing(true);
     setRatifiedSuccess(false);
-    // Reset signatures
     setPendingSignatures({
       dev: null,
       artist: null,
       writer: null,
       composer: null,
     });
+    setTimeout(() => {
+      proposalRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   // Sign Proposal as a specific member
@@ -349,6 +386,77 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
         </div>
       </div>
 
+      {/* Quick Split Presets & Reset Bar */}
+      <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-md">
+        <div className="flex items-center gap-2 text-xs text-slate-300 font-semibold">
+          <Sliders className="w-4 h-4 text-cyan-400" />
+          <span>Quick Split Presets:</span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleApplyPreset({ dev: 4000, artist: 3000, writer: 2000, composer: 1000 })}
+            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-medium border border-slate-700 transition cursor-pointer"
+          >
+            Core Game (40/30/20/10)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleApplyPreset({ dev: 2500, artist: 2500, writer: 2500, composer: 2500 })}
+            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-medium border border-slate-700 transition cursor-pointer"
+          >
+            Equal Quad (25% each)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleApplyPreset({ dev: 3500, artist: 2500, writer: 1500, composer: 2500 })}
+            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-medium border border-slate-700 transition cursor-pointer"
+          >
+            DLC Audio Focus (35/25/15/25)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleApplyPreset({ dev: 5000, artist: 2000, writer: 1500, composer: 1500 })}
+            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-medium border border-slate-700 transition cursor-pointer"
+          >
+            Engineering Sprint (50/20/15/15)
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResetToActiveEpoch}
+            className="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-850 text-slate-400 hover:text-white text-xs font-medium border border-slate-800 transition flex items-center gap-1 cursor-pointer"
+            title="Reset to Active Epoch splits"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Reset</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Proposal In-Progress Banner */}
+      {isProposing && (
+        <div className="p-4 rounded-xl bg-blue-950/80 border border-blue-700/80 text-blue-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <FileSignature className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>
+              <strong>Ratification Protocol Active for Epoch {proposedVersion}:</strong> Adjust splits or scroll down to the signature console below to sign.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => proposalRef.current?.scrollIntoView({ behavior: 'smooth' })}
+            className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold transition shrink-0 cursor-pointer text-xs"
+          >
+            Jump to Signatures ↓
+          </button>
+        </div>
+      )}
+
       {/* 4-Member Interactive Dials / Sliders Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {members.map((member) => {
@@ -398,36 +506,58 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
                 </button>
               </div>
 
-              {/* Percentage & BPS Display */}
-              <div className="mt-5 text-center">
-                <div className="text-3xl font-black text-white tracking-tight">
-                  {bpsToPercent(currentBps)}
-                </div>
-                <div className="flex items-center justify-center gap-2 mt-1">
-                  <span className="text-[11px] font-mono text-slate-400">
-                    {currentBps.toLocaleString()} BPS
-                  </span>
-                  {deltaBps !== 0 && (
-                    <span
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        deltaBps > 0
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                          : 'bg-amber-950 text-amber-400 border border-amber-800'
-                      }`}
-                    >
-                      {deltaBps > 0 ? `+${bpsToPercent(deltaBps)}` : bpsToPercent(deltaBps)}
+              {/* Percentage & BPS Display with Stepper Buttons */}
+              <div className="mt-4 flex items-center justify-center gap-2.5">
+                <button
+                  type="button"
+                  disabled={isLocked || currentBps <= 0}
+                  onClick={() => handleSplitChange(member.id, Math.max(0, currentBps - 500))}
+                  className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  title="Decrease by 5% (-500 BPS)"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+
+                <div className="text-center min-w-[90px]">
+                  <div className="text-3xl font-black text-white tracking-tight">
+                    {bpsToPercent(currentBps)}
+                  </div>
+                  <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {currentBps.toLocaleString()} BPS
                     </span>
-                  )}
+                    {deltaBps !== 0 && (
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                          deltaBps > 0
+                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                            : 'bg-amber-950 text-amber-400 border border-amber-800'
+                        }`}
+                      >
+                        {deltaBps > 0 ? `+${bpsToPercent(deltaBps)}` : bpsToPercent(deltaBps)}
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  disabled={isLocked || currentBps >= 10000}
+                  onClick={() => handleSplitChange(member.id, Math.min(10000, currentBps + 500))}
+                  className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  title="Increase by 5% (+500 BPS)"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Precision Slider Dial */}
-              <div className="mt-6 space-y-2">
+              <div className="mt-5 space-y-1.5">
                 <input
                   type="range"
                   min="0"
                   max="10000"
-                  step="50"
+                  step="100"
                   value={currentBps}
                   disabled={isLocked}
                   onChange={(e) => handleSplitChange(member.id, Number(e.target.value))}
@@ -455,7 +585,10 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
 
       {/* Multi-Party Ratification Console (Active Proposal Mode) */}
       {isProposing && (
-        <div className="p-6 rounded-2xl bg-slate-900 border border-blue-900/60 shadow-xl space-y-6 animate-in slide-in-from-top-4 duration-300">
+        <div
+          ref={proposalRef}
+          className="p-6 rounded-2xl bg-slate-900 border-2 border-blue-500/80 shadow-2xl shadow-blue-500/20 space-y-6 animate-in slide-in-from-top-4 duration-300 ring-4 ring-blue-500/10 scroll-mt-24"
+        >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
             <div>
               <div className="flex items-center gap-2">
@@ -487,10 +620,26 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
               <button
                 type="button"
                 onClick={() => setIsProposing(false)}
-                className="text-xs text-slate-400 hover:text-white cursor-pointer px-2 py-1 rounded"
+                className="text-xs text-slate-400 hover:text-white cursor-pointer px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700"
               >
-                Cancel
+                Cancel Proposal
               </button>
+            </div>
+          </div>
+
+          {/* Active Proposal Summary Pill Bar */}
+          <div className="p-3.5 rounded-xl bg-blue-950/60 border border-blue-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <span className="font-bold text-blue-200">
+              Proposed New Splits for Ratification:
+            </span>
+            <div className="flex flex-wrap items-center gap-3 font-mono font-bold">
+              {members.map((m) => (
+                <span key={m.id} className="flex items-center gap-1.5 text-white">
+                  <span>{m.avatar}</span>
+                  <span className="text-slate-300">{m.name.split(' ')[0]}:</span>
+                  <span className="text-cyan-300">{bpsToPercent(splits[m.id])}</span>
+                </span>
+              ))}
             </div>
           </div>
 
