@@ -11,6 +11,7 @@ import { GENESIS_EPOCH, INITIAL_INFLOWS, INITIAL_PAYOUT_BATCHES, MEMBERS } from 
 
 import { Epoch, Inflow, PayoutBatch, PayoutRecommendation, MemberRole } from '@/lib/types';
 import { verifyEpochChain } from '@/lib/crypto';
+import { dollarsToCents, calculatePayPalFeeCents, allocateCentsFairly } from '@/lib/fairsplit-math';
 import { ShieldCheck, Sparkles, Layers, DollarSign, Wallet } from 'lucide-react';
 
 export default function FairSplitApp() {
@@ -88,6 +89,41 @@ export default function FairSplitApp() {
   // Capture new inflow
   const handleNewInflow = (newInflow: Inflow) => {
     setInflows((prev) => [newInflow, ...prev]);
+  };
+
+  // Quick Inflow Simulator under active epoch
+  const handleSimulateQuickInflow = (grossDollars: number = 1000) => {
+    const grossCents = dollarsToCents(grossDollars);
+    const feeCents = calculatePayPalFeeCents(grossCents);
+    const netCents = Math.max(0, grossCents - feeCents);
+    const allocations = allocateCentsFairly(netCents, activeEpoch.splits);
+    const now = new Date().toISOString();
+    const newInflow: Inflow = {
+      id: `INF-${Math.floor(100 + Math.random() * 900)}`,
+      source: `Steam Sale Batch (${activeEpoch.version} Inflow)`,
+      grossCents,
+      feeCents,
+      netCents,
+      currency: 'USD',
+      timestamp: now,
+      paypalOrderId: `ORDER-${Date.now().toString().slice(-6)}`,
+      epochId: activeEpoch.epochId,
+      epochHash: activeEpoch.hash,
+      allocations,
+    };
+    setInflows((prev) => [newInflow, ...prev]);
+  };
+
+  // Re-allocate unwithdrawn reserves according to active epoch splits
+  const handleReallocatePendingReserves = () => {
+    setInflows((prev) =>
+      prev.map((inf) => ({
+        ...inf,
+        epochId: activeEpoch.epochId,
+        epochHash: activeEpoch.hash,
+        allocations: allocateCentsFairly(inf.netCents, activeEpoch.splits),
+      }))
+    );
   };
 
   // Add new payout batch
@@ -212,6 +248,8 @@ export default function FairSplitApp() {
             payoutBatches={payoutBatches}
             onNavigateToPayouts={() => setActiveTab('payments')}
             currentMember={currentMember}
+            onSimulateQuickInflow={handleSimulateQuickInflow}
+            onReallocatePendingReserves={handleReallocatePendingReserves}
           />
         )}
 
