@@ -21,8 +21,9 @@ import {
   Layers,
   ArrowRight,
 } from 'lucide-react';
-import { Epoch, Inflow, Member, MemberRole, PayoutBatch } from '@/lib/types';
-import { bpsToPercent, centsToDollars } from '@/lib/fairsplit-math';
+import { Epoch, Inflow, Member, MemberRole, PayoutBatch, ReserveReallocation } from '@/lib/types';
+import { allocateCentsFairly, bpsToPercent, centsToDollars } from '@/lib/fairsplit-math';
+import { calculateMemberBalances, calculateSettledPayouts } from '@/lib/balances';
 import { ExplainBalanceModal } from './ExplainBalanceModal';
 import { PayoutCertificateModal } from './PayoutCertificateModal';
 
@@ -31,10 +32,11 @@ interface CollaboratorBalancesProps {
   activeEpoch: Epoch;
   inflows: Inflow[];
   payoutBatches: PayoutBatch[];
+  reserveReallocations: ReserveReallocation[];
+  onApplyActiveEpochToReserves: () => void;
   onNavigateToPayouts: () => void;
   currentMember?: Member;
   onSimulateQuickInflow?: (grossDollars?: number) => void;
-  onReallocatePendingReserves?: () => void;
 }
 
 export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
@@ -42,10 +44,11 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
   activeEpoch,
   inflows,
   payoutBatches,
+  reserveReallocations,
+  onApplyActiveEpochToReserves,
   onNavigateToPayouts,
   currentMember,
   onSimulateQuickInflow,
-  onReallocatePendingReserves,
 }) => {
   const [selectedAuditMember, setSelectedAuditMember] = useState<Member | null>(null);
   const [selectedCertMember, setSelectedCertMember] = useState<Member | null>(null);
@@ -57,29 +60,18 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
     setTimeout(() => setActionAlert(null), 4000);
   };
 
-  // Calculate balances per member in deterministic cents
+  // Use the same ledger math as payout preparation and audit certificates.
+  const pendingByMember = calculateMemberBalances(inflows, payoutBatches, reserveReallocations);
+  const paidByMember = calculateSettledPayouts(payoutBatches);
+  const latestReallocation = reserveReallocations[reserveReallocations.length - 1];
+
   const memberBalances = members.map((member) => {
-    let totalAllocatedCents = 0;
-    let inflowCount = 0;
-
-    inflows.forEach((inflow) => {
-      const alloc = inflow.allocations.find((a) => a.memberId === member.id);
-      if (alloc) {
-        totalAllocatedCents += alloc.cents;
-        inflowCount++;
-      }
-    });
-
-    let totalPaidOutCents = 0;
-    payoutBatches.forEach((batch) => {
-      batch.items.forEach((item) => {
-        if (item.memberId === member.id && item.status === 'SUCCESS') {
-          totalPaidOutCents += item.amountCents;
-        }
-      });
-    });
-
-    const pendingBalanceCents = totalAllocatedCents - totalPaidOutCents;
+    const totalPaidOutCents = paidByMember[member.id];
+    const pendingBalanceCents = pendingByMember[member.id];
+    const totalAllocatedCents = pendingBalanceCents + totalPaidOutCents;
+    const inflowCount = inflows.filter((inflow) =>
+      inflow.allocations.some((allocation) => allocation.memberId === member.id)
+    ).length;
     const activeBps = activeEpoch.splits.find((s) => s.memberId === member.id)?.bps ?? 0;
 
     return {
@@ -93,6 +85,13 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
   });
 
   const grandTotalPending = memberBalances.reduce((sum, m) => sum + m.pendingBalanceCents, 0);
+  const reallocationPreview = allocateCentsFairly(Math.max(0, grandTotalPending), activeEpoch.splits);
+  const hasUnappliedOldInflows = inflows.some((inflow) => {
+    const wasIncludedInLatestReallocation = latestReallocation?.includedInflowIds.includes(inflow.id) ?? false;
+    return inflow.epochHash !== activeEpoch.hash &&
+      (latestReallocation?.epochHash !== activeEpoch.hash || !wasIncludedInLatestReallocation);
+  });
+  const canApplyCurrentEpoch = grandTotalPending > 0 && hasUnappliedOldInflows;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -191,21 +190,44 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
             </button>
           )}
 
-          {onReallocatePendingReserves && (
+          {canApplyCurrentEpoch && (
             <button
               type="button"
               onClick={() => {
-                onReallocatePendingReserves();
-                triggerAlert(`Re-allocated all unwithdrawn reserves according to Epoch ${activeEpoch.version} splits!`);
+                onApplyActiveEpochToReserves();
+                triggerAlert(`Applied Epoch ${activeEpoch.version} to the unclaimed reserve pool.`);
               }}
               className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition cursor-pointer"
-              title="Re-balance the entire unwithdrawn reserve according to the active epoch"
+              title="Redistribute only unpaid balances under the active epoch; preserve historical inflows and completed payouts"
             >
               <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
               <span>Apply {activeEpoch.version} to Unclaimed Reserves</span>
             </button>
           )}
         </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-xs text-slate-400">
+        {canApplyCurrentEpoch ? (
+          <div className="space-y-1.5">
+            <p>
+              Applying Epoch {activeEpoch.version} will redistribute the current unpaid pool of {centsToDollars(grandTotalPending)} as follows:
+            </p>
+            <p className="font-semibold text-slate-200">
+              {reallocationPreview.map((allocation) => {
+                const memberName = members.find((member) => member.id === allocation.memberId)?.name ?? allocation.memberId;
+                return `${memberName}: ${centsToDollars(allocation.cents)}`;
+              }).join(' · ')}
+            </p>
+            <p>Historical inflow allocations and completed payouts stay unchanged.</p>
+          </div>
+        ) : latestReallocation ? (
+          <span>
+            Unclaimed reserves were last reallocated under Epoch {latestReallocation.epochId.replace('epoch-', '')}. Historical inflow allocations and completed payouts remain unchanged.
+          </span>
+        ) : (
+          <span>Each inflow keeps the split from the signed epoch active when it arrived.</span>
+        )}
       </div>
 
       {/* 4 Member Balance Cards */}
@@ -247,7 +269,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
                   </div>
 
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-950 text-blue-300 border border-blue-800">
-                    {bpsToPercent(activeBps)} share
+                    {bpsToPercent(activeBps)} new inflow rate
                   </span>
                 </div>
 
@@ -275,7 +297,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
                 {/* Financial Metrics */}
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between text-slate-400">
-                    <span>Gross Allocations:</span>
+                    <span>Effective Allocation Total:</span>
                     <span className="text-slate-200 font-medium">
                       {centsToDollars(totalAllocatedCents)}
                     </span>
@@ -417,6 +439,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
         member={selectedAuditMember}
         inflows={inflows}
         payoutBatches={payoutBatches}
+        reserveReallocations={reserveReallocations}
       />
 
       {/* Cryptographic Payout Certificate Modal */}
@@ -427,6 +450,7 @@ export const CollaboratorBalances: React.FC<CollaboratorBalancesProps> = ({
         activeEpoch={activeEpoch}
         inflows={inflows}
         payoutBatches={payoutBatches}
+        reserveReallocations={reserveReallocations}
       />
     </div>
   );

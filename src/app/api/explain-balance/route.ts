@@ -6,7 +6,7 @@ import { MemberRole } from '@/lib/types';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { memberId, inflows, payoutBatches } = body;
+    const { memberId, inflows, payoutBatches, reserveReallocations } = body;
 
     if (!memberId) {
       return NextResponse.json({ error: 'Missing memberId parameter' }, { status: 400 });
@@ -21,7 +21,8 @@ export async function POST(req: NextRequest) {
       memberId as MemberRole,
       member,
       inflows || [],
-      payoutBatches || []
+      payoutBatches || [],
+      reserveReallocations || []
     );
 
     return NextResponse.json(audit);

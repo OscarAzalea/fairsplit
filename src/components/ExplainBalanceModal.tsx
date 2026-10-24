@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { X, ShieldCheck, Sparkles, Loader2, DollarSign, FileCheck, ExternalLink } from 'lucide-react';
-import { BalanceAuditResult, Inflow, Member, MemberRole, PayoutBatch } from '@/lib/types';
+import { BalanceAuditResult, Inflow, Member, MemberRole, PayoutBatch, ReserveReallocation } from '@/lib/types';
 import { centsToDollars } from '@/lib/fairsplit-math';
 
 interface ExplainBalanceModalProps {
@@ -11,6 +11,7 @@ interface ExplainBalanceModalProps {
   member: Member | null;
   inflows: Inflow[];
   payoutBatches: PayoutBatch[];
+  reserveReallocations: ReserveReallocation[];
 }
 
 export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
@@ -19,6 +20,7 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
   member,
   inflows,
   payoutBatches,
+  reserveReallocations,
 }) => {
   const [audit, setAudit] = useState<BalanceAuditResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -38,6 +40,7 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
         memberId: member.id,
         inflows,
         payoutBatches,
+        reserveReallocations,
       }),
     })
       .then(async (res) => {
@@ -59,7 +62,7 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, member, inflows, payoutBatches]);
+  }, [isOpen, member, inflows, payoutBatches, reserveReallocations]);
 
   if (!isOpen || !member) return null;
 
@@ -115,6 +118,9 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
                     <span>Plain-English Financial Audit</span>
                   </div>
                   <div className="text-right">
+                    <span className="text-[10px] text-slate-500 block">
+                      {audit.aiProvider === 'gemini' ? 'Gemini API response' : 'Local heuristic fallback'}
+                    </span>
                     <span className="text-[10px] text-slate-400 block">Verified Pending Balance</span>
                     <span className="text-xl font-extrabold text-emerald-400">
                       {audit.totalPendingDollars}
@@ -146,7 +152,7 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
                         <th className="p-3">Gross</th>
                         <th className="p-3">PayPal Fee</th>
                         <th className="p-3">Net Revenue</th>
-                        <th className="p-3">Active Share</th>
+                        <th className="p-3">Original Epoch Share</th>
                         <th className="p-3 text-right">Your Net Share</th>
                         <th className="p-3 text-center">Epoch Tie</th>
                       </tr>
@@ -178,6 +184,39 @@ export const ExplainBalanceModal: React.FC<ExplainBalanceModalProps> = ({
                   </table>
                 </div>
               </div>
+
+              {audit.reserveReallocationHistory.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>Unclaimed Reserve Reallocations</span>
+                  </div>
+                  <div className="overflow-x-auto rounded-xl border border-slate-800">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 font-medium">
+                        <tr>
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Epoch</th>
+                          <th className="p-3 text-right">Before</th>
+                          <th className="p-3 text-right">After</th>
+                          <th className="p-3 text-right">Change</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/80 bg-slate-900/40">
+                        {audit.reserveReallocationHistory.map((row, i) => (
+                          <tr key={`${row.date}-${row.epochVersion}-${i}`}>
+                            <td className="p-3 text-slate-300">{row.date}</td>
+                            <td className="p-3 font-semibold text-emerald-300">{row.epochVersion}</td>
+                            <td className="p-3 text-right text-slate-300">{row.previousPendingDollars}</td>
+                            <td className="p-3 text-right text-slate-200">{row.newPendingDollars}</td>
+                            <td className="p-3 text-right font-bold text-emerald-400">{row.changeDollars}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Payouts Deductions History */}
               <div className="space-y-3">

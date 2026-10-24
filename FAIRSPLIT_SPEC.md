@@ -16,7 +16,7 @@ Modern creative collectives—indie game studios, modding groups, and independen
 - **Deterministic Fintech Math in Integer Cents** (Hamilton-Hare / Largest Remainder algorithm; zero float errors).
 - **Agreement Studio**: Interactive split dials, Gemini-powered Socratic AI negotiation drawer with structured output mediation, and cryptographic 4-party ratification.
 - **Trust Ledger**: Append-only SHA-256 hash-chained epochs (`v1.0` -> `v2.0`), where every customer inflow is immutably linked to the active epoch hash.
-- **Payments Hub**: Integrated PayPal Sandbox Orders API simulator for revenue inflows and PayPal Sandbox Payouts API batch distribution console with per-item idempotency tracking (`SUCCESS`, `PENDING`, `FAILED`).
+- **Payments Hub**: PayPal Sandbox Orders checkout with buyer approval and server-side capture when credentials are configured; local simulation otherwise. Payout payloads are prepared and their results are simulated in this version.
 - **Explain My Balance AI**: Plain-English, transparent audits explaining every penny without hallucinating numbers.
 
 ---
@@ -50,10 +50,10 @@ Modern creative collectives—indie game studios, modding groups, and independen
 +-------------------------------------------------------------------------+
 |                              PAYMENTS HUB                               |
 |                                                                         |
-|  [ INFLOWS: PayPal Orders API ]        [ OUTFLOWS: PayPal Payouts API ] |
-|  - Checkout Simulator                  - Batch Distribution Console     |
-|  - Real-time Fee Deduction             - Idempotent `sender_item_id`    |
-|  - Active Epoch Hash Stamp             - Status: SUCCESS/PEND/FAILED    |
+|  [ INFLOWS: PayPal Orders API ]        [ OUTFLOWS: Payout Demo ]         |
+|  - Buyer Approval + Capture            - Batch Payload Preview           |
+|  - Actual Fee or Estimate               - Simulated Result                |
+|  - Active Epoch Hash Stamp             - No Funds Sent                   |
 +-------------------------------------------------------------------------+
 ```
 
@@ -177,28 +177,30 @@ interface Inflow {
   - **High-Confidence Attribution**: If a single participant's equity share was unilaterally inflated without valid counter-party digital signatures, the forensic engine attributes the suspect with 100% cryptographic certainty and flags an automated payout freeze.
   - **Withheld Attribution (Inconclusive)**: If the corruption is an anonymous or structural bit flip in transport where no individual collaborator benefits, attribution is explicitly withheld to prevent false accusations.
 - **Collaborator Balance Cards**:
-  - Real-time calculation: $\text{Pending Balance} = \sum \text{Allocated Inflows} - \sum \text{Executed Payouts}$.
+  - Real-time calculation uses immutable inflow allocations and successful payouts, plus any reserve reallocation snapshots.
+  - Existing inflows retain their capture epoch. After a new epoch is ratified, collaborators can explicitly apply its split to the current unpaid reserve; this changes pending entitlements without rewriting historical inflow allocations or completed payouts.
+  - Subsequent inflows and payouts are applied on top of the latest reserve snapshot, so the balance cards and payout preparation use the same cents-exact balance calculation.
   - One-click trigger for **"Explain My Balance"** AI Auditor.
 
 
-### 4.3 Payments Hub (PayPal Sandbox Integration)
+### 4.3 Payments Hub (PayPal Sandbox Checkout and Payout Demo)
 
-#### A. Inflows (PayPal Orders API Simulator & Live Sandbox)
-- Simulates or executes `/v2/checkout/orders` with `intent: CAPTURE`.
-- Calculates merchant fee:
+#### A. Inflows (PayPal Orders API)
+- With both Sandbox credentials configured, creates an order using `/v2/checkout/orders`, lets a Sandbox buyer approve it through PayPal Checkout, and captures it server-side only after approval.
+- Without either credential, uses the local simulator. An API error is shown to the user and does not silently fall back to simulation.
+- Stores the returned order ID, capture ID, capture mode, and status in the ledger.
+- Uses PayPal's returned fee and net amounts when supplied; otherwise displays and records the app's estimate:
   $$\text{feeCents} = \text{round}(\text{grossCents} \times 0.0299) + 49$$
-- Automatically stamps capture with active `epochId` and `epochHash`.
-- Records transaction with immediate credit to member accounts.
+- Stamps a completed capture with the active `epochId` and `epochHash`.
 
-#### B. Outflows (PayPal Payouts API Batch Distribution Console)
-- Prepares batch payload conforming to PayPal Payouts API:
+#### B. Outflows (Simulated Payout Batch)
+- Prepares a Payouts API payload for inspection:
   - `sender_batch_header.sender_batch_id`: Unique idempotency key `BATCH-AURORA-[TIMESTAMP]-[RAND]`.
   - `items[].sender_item_id`: Unique idempotency key `ITEM-AURORA-[MEMBER_ID]-[TIMESTAMP]`.
   - `items[].receiver`: Collaborator PayPal email.
   - `items[].amount.value`: Converted from cents to formatted USD string (e.g. `"969.90"`).
-- Calls `/api/paypal/create-payout` (with Sandbox API keys or realistic sandbox simulator).
-- Tracks per-item status: `PENDING` $\to$ `SUCCESS` / `FAILED`.
-- Deducts paid cents from pending balance upon `SUCCESS`.
+- Simulates each item's result. No PayPal Payouts API call is made and no money is sent.
+- Deducts simulated paid cents from the demo balance when the simulated item status is `SUCCESS`.
 
 ---
 
@@ -209,9 +211,9 @@ interface Inflow {
 | `/api/negotiate` | `POST` | Gemini Socratic mediator reasoning & structured compromise proposal |
 | `/api/explain-balance` | `POST` | Plain-English transparent financial breakdown for a member |
 | `/api/paypal/create-order` | `POST` | Creates PayPal Sandbox Order for customer checkout |
-| `/api/paypal/capture-order` | `POST` | Captures PayPal Order, computes fees, ties to epoch |
-| `/api/paypal/create-payout` | `POST` | Dispatches idempotent batch payout via PayPal Payouts API |
-| `/api/paypal/payout-status` | `GET` | Queries batch status and item execution states |
+| `/api/paypal/capture-order` | `POST` | Captures the approved Sandbox order; simulator mode is explicit |
+| `/api/paypal/create-payout` | `POST` | Simulates a payout batch from the prepared payload |
+| `/api/integration-status` | `GET` | Reports configured AI and PayPal modes without returning secrets |
 
 ---
 
@@ -221,10 +223,9 @@ interface Inflow {
 # Optional Gemini API Key (App includes intelligent offline heuristic fallback)
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# Optional PayPal Sandbox Credentials (App includes built-in live sandbox simulator)
+# Optional PayPal Sandbox credentials (set both or leave both blank)
 PAYPAL_CLIENT_ID=your_paypal_sandbox_client_id
 PAYPAL_CLIENT_SECRET=your_paypal_sandbox_secret
-PAYPAL_ENVIRONMENT=sandbox
 ```
 
 ---
@@ -232,6 +233,6 @@ PAYPAL_ENVIRONMENT=sandbox
 ## 7. Verification & Hackathon Testing Guide
 1. **Agreement Studio**: Adjust dials to test proportional auto-balancing (always sums to 100.00%). Open the Socratic AI drawer to request mediation. Propose a new epoch and complete 4/4 ratification.
 2. **Trust Ledger**: Observe the SHA-256 hash chain update from `v1.0` to `v2.0`. Run the Ledger Integrity Verifier to validate chain authenticity.
-3. **Payments Hub (Inflows)**: Trigger a `$2,500.00` Steam Sale batch or custom amount. Notice the exact fee ($75.24) and deterministic cents distribution to each member.
+3. **Payments Hub (Inflows)**: Trigger a `$2,500.00` Steam Sale batch or custom amount. With credentials, approve it as a Sandbox buyer; otherwise use the clearly labelled simulator. Review the settled amounts and deterministic cents distribution.
 4. **Explain My Balance**: Click the audit button on any collaborator to see Gemini's step-by-step mathematical breakdown.
-5. **Payments Hub (Payouts)**: Select members, inspect the raw PayPal Payouts API batch payload with idempotent keys, and execute the distribution.
+5. **Payments Hub (Payouts)**: Select members, inspect the raw Payouts API batch payload and run the simulated distribution. This demo sends no funds.

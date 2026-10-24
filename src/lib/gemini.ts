@@ -1,5 +1,6 @@
-import { BalanceAuditResult, Epoch, Inflow, Member, MemberRole, NegotiationResult, PayoutBatch, StudioAdviceResult, PayoutRecommendation, StudioChatResult } from './types';
+import { BalanceAuditResult, Epoch, Inflow, Member, MemberRole, NegotiationResult, PayoutBatch, ReserveReallocation, StudioAdviceResult, PayoutRecommendation, StudioChatResult } from './types';
 import { bpsToPercent, centsToDollars, TOTAL_BPS } from './fairsplit-math';
+import { calculateMemberBalances } from './balances';
 
 interface NegotiationInput {
   currentSplits: Record<MemberRole, number>;
@@ -82,7 +83,7 @@ CRITICAL: The sum of dev, artist, writer, and composer in compromiseSplits MUST 
             (parsed.compromiseSplits.composer || 0);
 
           if (sum === TOTAL_BPS) {
-            return parsed;
+            return { ...parsed, aiProvider: 'gemini' };
           }
         }
       }
@@ -151,6 +152,7 @@ function generateHeuristicNegotiation(
   );
 
   return {
+    aiProvider: 'heuristic',
     summary,
     socraticQuestions,
     compromiseSplits: rawCompromise,
@@ -172,7 +174,8 @@ export async function runBalanceAudit(
   memberId: MemberRole,
   member: Member,
   inflows: Inflow[],
-  payoutBatches: PayoutBatch[]
+  payoutBatches: PayoutBatch[],
+  reserveReallocations: ReserveReallocation[] = []
 ): Promise<BalanceAuditResult> {
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -221,7 +224,8 @@ export async function runBalanceAudit(
     });
   });
 
-  const pendingCents = totalAllocatedCents - totalPaidCents;
+  const pendingCents = calculateMemberBalances(inflows, payoutBatches, reserveReallocations)[memberId];
+  const effectiveAllocatedCents = pendingCents + totalPaidCents;
 
   const epochBreakdown = memberInflowAllocations.map((item) => ({
     epochVersion: item.epochId.replace('epoch-', ''),
@@ -245,23 +249,47 @@ export async function runBalanceAudit(
     status: p.status,
   }));
 
-  let summary = `Your total pending balance is ${centsToDollars(
+  const reserveReallocationHistory = reserveReallocations.map((reallocation) => {
+    const previousPendingCents = reallocation.previousPendingCents[memberId] ?? 0;
+    const newPendingCents = reallocation.allocations.find((allocation) => allocation.memberId === memberId)?.cents ?? 0;
+
+    return {
+      date: new Date(reallocation.createdAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+      epochVersion: reallocation.epochId.replace('epoch-', ''),
+      previousPendingDollars: centsToDollars(previousPendingCents),
+      newPendingDollars: centsToDollars(newPendingCents),
+      changeDollars: centsToDollars(newPendingCents - previousPendingCents),
+    };
+  });
+
+  const netReserveAdjustmentCents = effectiveAllocatedCents - totalAllocatedCents;
+  let summary = `Your current pending balance is ${centsToDollars(
     pendingCents
-  )}. This represents ${centsToDollars(
+  )}. The original inflow ledger allocated ${centsToDollars(
     totalAllocatedCents
-  )} earned across ${inflows.length} customer revenue events, minus ${centsToDollars(
+  )} to you across ${inflows.length} customer revenue events, and ${centsToDollars(
     totalPaidCents
-  )} in settled PayPal batch payouts.`;
+  )} has been paid. ${reserveReallocationHistory.length > 0
+    ? `A reserve reallocation under a ratified epoch changed your net allocation by ${centsToDollars(netReserveAdjustmentCents)} while leaving original inflow and completed payout records intact.`
+    : 'No reserve reallocation has been applied.'}`;
+  let aiProvider: 'gemini' | 'heuristic' = 'heuristic';
 
   if (apiKey) {
     try {
       const auditPrompt = `You are the FairSplit AI Auditor. Explain to ${member.name} (${member.roleTitle}) why their balance is exactly ${centsToDollars(pendingCents)}.
 Inflow details:
 ${JSON.stringify(epochBreakdown, null, 2)}
+Reserve reallocation history:
+${JSON.stringify(reserveReallocationHistory, null, 2)}
 Payout details:
 ${JSON.stringify(payoutHistory, null, 2)}
 
-Provide a concise, 2-paragraph professional, reassuring, and completely transparent summary. Emphasize that all numbers are calculated in deterministic cents under cryptographically signed epochs.`;
+Current pending balance: ${centsToDollars(pendingCents)}. Original inflow allocation total: ${centsToDollars(totalAllocatedCents)}. Net change from reserve reallocation: ${centsToDollars(netReserveAdjustmentCents)}. Completed payouts: ${centsToDollars(totalPaidCents)}.
+Explain that reserve reallocation changes only unpaid balances and does not rewrite historical inflow allocations or completed payouts. Provide a concise, 2-paragraph professional and transparent summary. All amounts are computed deterministically in cents.`;
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
@@ -280,6 +308,7 @@ Provide a concise, 2-paragraph professional, reassuring, and completely transpar
         const geminiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (geminiText) {
           summary = geminiText.trim();
+          aiProvider = 'gemini';
         }
       }
     } catch (e) {
@@ -288,11 +317,13 @@ Provide a concise, 2-paragraph professional, reassuring, and completely transpar
   }
 
   return {
+    aiProvider,
     memberId,
     memberName: member.name,
     summary,
     totalPendingDollars: centsToDollars(pendingCents),
     epochBreakdown,
+    reserveReallocationHistory,
     payoutHistory,
     integrityAttestation: `Certified by FairSplit Trust Ledger. Zero floating-point rounding variance detected. Every transaction is immutably anchored to a ratified SHA-256 epoch.`,
   };

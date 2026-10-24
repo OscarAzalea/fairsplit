@@ -365,7 +365,7 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
               <tr>
                 <th className="p-3">Inflow ID</th>
                 <th className="p-3">Source Channel</th>
-                <th className="p-3">PayPal Order ID</th>
+                <th className="p-3">PayPal IDs / Mode</th>
                 <th className="p-3">Gross</th>
                 <th className="p-3">PayPal Fee</th>
                 <th className="p-3 font-semibold text-slate-200">Net Cents</th>
@@ -378,8 +378,22 @@ export const TrustLedger: React.FC<TrustLedgerProps> = ({
                 <tr key={inflow.id} className="hover:bg-slate-800/40 transition">
                   <td className="p-3 font-mono font-bold text-blue-400">{inflow.id}</td>
                   <td className="p-3 font-medium text-slate-200">{inflow.source}</td>
-                  <td className="p-3 font-mono text-[11px] text-slate-400">
-                    {inflow.paypalOrderId}
+                  <td className="p-3 font-mono text-[10px] text-slate-400">
+                    <div>Order: {inflow.paypalOrderId}</div>
+                    {inflow.paypalCaptureId && (
+                      <div className="text-slate-500">Capture: {inflow.paypalCaptureId}</div>
+                    )}
+                    <div
+                      className={
+                        inflow.paymentMode === 'PAYPAL_SANDBOX'
+                          ? 'text-blue-400'
+                          : inflow.paymentMode === 'SIMULATED'
+                            ? 'text-amber-400'
+                            : 'text-slate-600'
+                      }
+                    >
+                      {inflow.paymentMode || 'Seeded demo'} · {inflow.paymentStatus || 'sample'}
+                    </div>
                   </td>
                   <td className="p-3 text-slate-400">{centsToDollars(inflow.grossCents)}</td>
                   <td className="p-3 text-red-400">-{centsToDollars(inflow.feeCents)}</td>

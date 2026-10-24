@@ -51,9 +51,27 @@ export interface Inflow {
   currency: 'USD';
   timestamp: string;
   paypalOrderId: string;
+  paypalCaptureId?: string;
+  paymentMode?: 'PAYPAL_SANDBOX' | 'SIMULATED';
+  paymentStatus?: 'COMPLETED' | 'SIMULATED';
   epochId: string; // Immutable link to active epoch
   epochHash: string; // Immutable tie to active epoch SHA-256
   allocations: InflowAllocation[];
+}
+
+/**
+ * An auditable redistribution of the unpaid reserve under a newly ratified epoch.
+ * It leaves the original inflow allocations and completed payouts untouched.
+ */
+export interface ReserveReallocation {
+  id: string;
+  createdAt: string;
+  epochId: string;
+  epochHash: string;
+  previousPendingCents: Record<MemberRole, number>;
+  allocations: InflowAllocation[];
+  includedInflowIds: string[];
+  includedPayoutItemIds: string[];
 }
 
 export type PayoutStatus = 'PENDING' | 'SUCCESS' | 'FAILED';
@@ -95,6 +113,7 @@ export interface MemberBalanceSummary {
 }
 
 export interface NegotiationResult {
+  aiProvider: 'gemini' | 'heuristic';
   summary: string;
   socraticQuestions: string[];
   compromiseSplits: Record<MemberRole, number>;
@@ -104,6 +123,7 @@ export interface NegotiationResult {
 }
 
 export interface BalanceAuditResult {
+  aiProvider: 'gemini' | 'heuristic';
   memberId: MemberRole;
   memberName: string;
   summary: string;
@@ -117,6 +137,13 @@ export interface BalanceAuditResult {
     netDollars: string;
     memberShareDollars: string;
     verifiedEpochHash: string;
+  }[];
+  reserveReallocationHistory: {
+    date: string;
+    epochVersion: string;
+    previousPendingDollars: string;
+    newPendingDollars: string;
+    changeDollars: string;
   }[];
   payoutHistory: {
     date: string;

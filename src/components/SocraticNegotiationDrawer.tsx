@@ -48,10 +48,31 @@ export const SocraticNegotiationDrawer: React.FC<SocraticNegotiationDrawerProps>
       });
 
       if (!res.ok) {
-        throw new Error(`Failed to negotiate: ${res.statusText}`);
+        const body = await res.json().catch(() => null);
+        throw new Error(
+          typeof body?.error === 'string'
+            ? body.error
+            : 'The negotiation request could not be completed.'
+        );
       }
 
       const data: NegotiationResult = await res.json();
+      const splits = data.compromiseSplits as Record<string, unknown>;
+      const memberIds = members.map((member) => member.id);
+      const validSplits =
+        splits &&
+        typeof splits === 'object' &&
+        !Array.isArray(splits) &&
+        Object.keys(splits).length === memberIds.length &&
+        memberIds.every(
+          (id) => Number.isInteger(splits[id]) && Number(splits[id]) >= 0
+        ) &&
+        memberIds.reduce((sum, id) => sum + Number(splits[id]), 0) === 10000;
+
+      if (!validSplits) {
+        throw new Error('This AI proposal was rejected because its shares do not total 100%.');
+      }
+
       setNegotiationResult(data);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Mediation request failed');
@@ -73,7 +94,11 @@ export const SocraticNegotiationDrawer: React.FC<SocraticNegotiationDrawerProps>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 Socratic AI Negotiation Mediator
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-900/60 text-purple-300 border border-purple-700/50">
-                  Gemini Structured
+                  {negotiationResult
+                    ? negotiationResult.aiProvider === 'gemini'
+                      ? 'Gemini API result'
+                      : 'Local heuristic fallback'
+                    : 'Gemini + local fallback'}
                 </span>
               </h2>
               <p className="text-xs text-slate-400">

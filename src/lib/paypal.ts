@@ -3,6 +3,7 @@ import { centsToDollars } from './fairsplit-math';
 
 export interface PayPalOrderResponse {
   id: string;
+  mode: 'sandbox' | 'simulated';
   status: 'CREATED' | 'SAVED' | 'APPROVED' | 'VOIDED' | 'COMPLETED' | 'PAYER_ACTION_REQUIRED';
   intent: 'CAPTURE';
   purchase_units: {
@@ -23,6 +24,7 @@ export interface PayPalOrderResponse {
 
 export interface PayPalCaptureResponse {
   id: string;
+  mode: 'sandbox' | 'simulated';
   status: 'COMPLETED' | 'FAILED' | 'PENDING';
   purchase_units: {
     payments: {
@@ -44,64 +46,109 @@ export interface PayPalCaptureResponse {
 }
 
 /**
- * Creates a PayPal Sandbox Order or realistic simulation.
+ * Reports whether the server can make real PayPal Sandbox API calls.
+ * The client ID is public by design and is only returned for SDK setup.
+ */
+export function getPayPalIntegrationStatus(): {
+  mode: 'sandbox' | 'simulated' | 'incomplete';
+  clientId?: string;
+} {
+  const clientId = process.env.PAYPAL_CLIENT_ID;
+  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+  const hasAnyCredential = Boolean(clientId || clientSecret);
+
+  if (!hasAnyCredential) {
+    return { mode: 'simulated' };
+  }
+
+  if (!clientId || !clientSecret) {
+    return { mode: 'incomplete' };
+  }
+
+  return { mode: 'sandbox', clientId };
+}
+
+async function getPayPalAccessToken(): Promise<string> {
+  const { mode } = getPayPalIntegrationStatus();
+  const clientId = process.env.PAYPAL_CLIENT_ID;
+  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+
+  if (mode !== 'sandbox' || !clientId || !clientSecret) {
+    throw new Error('PayPal Sandbox credentials are incomplete.');
+  }
+
+  const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  const tokenRes = await fetch('https://api-m.sandbox.paypal.com/v1/oauth2/token', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+    cache: 'no-store',
+  });
+
+  if (!tokenRes.ok) {
+    throw new Error(`PayPal Sandbox authentication failed (${tokenRes.status}).`);
+  }
+
+  const tokenData = await tokenRes.json();
+  if (typeof tokenData.access_token !== 'string') {
+    throw new Error('PayPal Sandbox did not return an access token.');
+  }
+
+  return tokenData.access_token;
+}
+
+/**
+ * Creates a real PayPal Sandbox order when credentials are present.
+ * Without credentials, returns a clearly labelled simulator order.
  */
 export async function createSandboxOrder(
   amountDollars: number,
   description: string
 ): Promise<PayPalOrderResponse> {
-  const clientId = process.env.PAYPAL_CLIENT_ID;
-  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+  const integration = getPayPalIntegrationStatus();
 
-  if (clientId && clientSecret) {
-    try {
-      const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-      const tokenRes = await fetch('https://api-m.sandbox.paypal.com/v1/oauth2/token', {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${auth}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: 'grant_type=client_credentials',
-      });
-
-      if (tokenRes.ok) {
-        const tokenData = await tokenRes.json();
-        const accessToken = tokenData.access_token;
-
-        const orderRes = await fetch('https://api-m.sandbox.paypal.com/v2/checkout/orders', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            intent: 'CAPTURE',
-            purchase_units: [
-              {
-                amount: {
-                  currency_code: 'USD',
-                  value: amountDollars.toFixed(2),
-                },
-                description,
-              },
-            ],
-          }),
-        });
-
-        if (orderRes.ok) {
-          return await orderRes.json();
-        }
-      }
-    } catch (e) {
-      console.warn('Live PayPal Sandbox API failed, falling back to Sandbox Simulator:', e);
-    }
+  if (integration.mode === 'incomplete') {
+    throw new Error('Configure both PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET.');
   }
 
-  // Standalone High-Fidelity Sandbox Simulator
+  if (integration.mode === 'sandbox') {
+    const accessToken = await getPayPalAccessToken();
+    const orderRes = await fetch('https://api-m.sandbox.paypal.com/v2/checkout/orders', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        intent: 'CAPTURE',
+        purchase_units: [
+          {
+            amount: {
+              currency_code: 'USD',
+              value: amountDollars.toFixed(2),
+            },
+            description,
+          },
+        ],
+      }),
+      cache: 'no-store',
+    });
+
+    if (!orderRes.ok) {
+      throw new Error(`PayPal Sandbox order creation failed (${orderRes.status}).`);
+    }
+
+    return { ...(await orderRes.json()), mode: 'sandbox' };
+  }
+
+  // Standalone simulator. It does not create an order at PayPal.
   const orderId = `ORD-SANDBOX-${Math.floor(100000 + Math.random() * 900000)}`;
   return {
     id: orderId,
+    mode: 'simulated',
     status: 'CREATED',
     intent: 'CAPTURE',
     purchase_units: [
@@ -131,18 +178,60 @@ export async function createSandboxOrder(
 }
 
 /**
- * Captures a PayPal Sandbox Order.
+ * Captures a buyer-approved PayPal Sandbox order. A simulator amount is
+ * accepted only for locally generated simulator IDs.
  */
 export async function captureSandboxOrder(
   orderId: string,
-  amountDollars: number
+  simulatedAmountDollars?: number
 ): Promise<PayPalCaptureResponse> {
+  const integration = getPayPalIntegrationStatus();
+
+  if (integration.mode === 'incomplete') {
+    throw new Error('Configure both PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET.');
+  }
+
+  if (integration.mode === 'sandbox') {
+    const accessToken = await getPayPalAccessToken();
+    const captureRes = await fetch(
+      `https://api-m.sandbox.paypal.com/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+        cache: 'no-store',
+      }
+    );
+
+    if (!captureRes.ok) {
+      throw new Error(`PayPal Sandbox capture failed (${captureRes.status}).`);
+    }
+
+    return { ...(await captureRes.json()), mode: 'sandbox' };
+  }
+
+  if (!/^ORD-SANDBOX-\d{6}$/.test(orderId)) {
+    throw new Error('Simulator can only capture its own generated order IDs.');
+  }
+  if (
+    typeof simulatedAmountDollars !== 'number' ||
+    !Number.isFinite(simulatedAmountDollars) ||
+    simulatedAmountDollars <= 0
+  ) {
+    throw new Error('A valid amount is required to simulate a capture.');
+  }
+
+  const amountDollars = simulatedAmountDollars;
   const grossValue = amountDollars.toFixed(2);
   const feeValue = (amountDollars * 0.0299 + 0.49).toFixed(2);
   const netValue = (amountDollars - parseFloat(feeValue)).toFixed(2);
 
   return {
     id: orderId,
+    mode: 'simulated',
     status: 'COMPLETED',
     purchase_units: [
       {

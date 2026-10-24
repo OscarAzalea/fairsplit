@@ -32,6 +32,8 @@ interface AgreementStudioProps {
   currentMember?: Member;
 }
 
+const formatPercentageInput = (bps: number) => (bps / 100).toFixed(2).replace(/\.?0+$/, '');
+
 export const AgreementStudio: React.FC<AgreementStudioProps> = ({
   members,
   activeEpoch,
@@ -47,6 +49,12 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
     });
     return initial;
   });
+  const [percentageDrafts, setPercentageDrafts] = useState<Record<MemberRole, string>>(() => ({
+    dev: formatPercentageInput(splits.dev),
+    artist: formatPercentageInput(splits.artist),
+    writer: formatPercentageInput(splits.writer),
+    composer: formatPercentageInput(splits.composer),
+  }));
 
   const [lockedMembers, setLockedMembers] = useState<Set<MemberRole>>(new Set());
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
@@ -59,6 +67,12 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
       initial[s.memberId] = s.bps;
     });
     setSplits(initial);
+    setPercentageDrafts({
+      dev: formatPercentageInput(initial.dev),
+      artist: formatPercentageInput(initial.artist),
+      writer: formatPercentageInput(initial.writer),
+      composer: formatPercentageInput(initial.composer),
+    });
   }, [activeEpoch]);
 
   // Ratification flow state
@@ -81,6 +95,12 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
 
   const [ratifiedSuccess, setRatifiedSuccess] = useState<boolean>(false);
 
+  const resetRatification = () => {
+    setPendingSignatures({ dev: null, artist: null, writer: null, composer: null });
+    setIsProposing(false);
+    setRatifiedSuccess(false);
+  };
+
   // Toggle lock
   const toggleLock = (role: MemberRole) => {
     setLockedMembers((prev) => {
@@ -101,12 +121,42 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
   const handleSplitChange = (role: MemberRole, newBps: number) => {
     const updated = rebalanceSplits(splits, role, newBps, lockedMembers);
     setSplits(updated);
+    setPercentageDrafts({
+      dev: formatPercentageInput(updated.dev),
+      artist: formatPercentageInput(updated.artist),
+      writer: formatPercentageInput(updated.writer),
+      composer: formatPercentageInput(updated.composer),
+    });
+    resetRatification();
+  };
+
+  const commitPercentageInput = (role: MemberRole) => {
+    const rawValue = percentageDrafts[role].trim();
+    if (!rawValue) {
+      setPercentageDrafts((previous) => ({ ...previous, [role]: formatPercentageInput(splits[role]) }));
+      return;
+    }
+
+    const enteredPercent = Number(rawValue);
+    if (!Number.isFinite(enteredPercent)) {
+      setPercentageDrafts((previous) => ({ ...previous, [role]: formatPercentageInput(splits[role]) }));
+      return;
+    }
+
+    handleSplitChange(role, Math.round(Math.max(0, Math.min(100, enteredPercent)) * 100));
   };
 
   // 1-Click Preset Allocations
   const handleApplyPreset = (preset: Record<MemberRole, number>) => {
     setSplits(preset);
+    setPercentageDrafts({
+      dev: formatPercentageInput(preset.dev),
+      artist: formatPercentageInput(preset.artist),
+      writer: formatPercentageInput(preset.writer),
+      composer: formatPercentageInput(preset.composer),
+    });
     setLockedMembers(new Set());
+    resetRatification();
   };
 
   // Reset to Active Epoch baseline
@@ -116,8 +166,14 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
       resetSplits[s.memberId] = s.bps;
     });
     setSplits(resetSplits);
+    setPercentageDrafts({
+      dev: formatPercentageInput(resetSplits.dev),
+      artist: formatPercentageInput(resetSplits.artist),
+      writer: formatPercentageInput(resetSplits.writer),
+      composer: formatPercentageInput(resetSplits.composer),
+    });
     setLockedMembers(new Set());
-    setIsProposing(false);
+    resetRatification();
   };
 
   // Check if splits differ from active epoch
@@ -518,9 +574,34 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
                   <Minus className="w-4 h-4" />
                 </button>
 
-                <div className="text-center min-w-[90px]">
-                  <div className="text-3xl font-black text-white tracking-tight">
-                    {bpsToPercent(currentBps)}
+                <div className="text-center min-w-[130px]">
+                  <label
+                    htmlFor={`share-${member.id}`}
+                    className="block text-[9px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5"
+                  >
+                    Tap number to edit
+                  </label>
+                  <div className="inline-flex items-center justify-center gap-1">
+                    <input
+                      id={`share-${member.id}`}
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={percentageDrafts[member.id]}
+                      disabled={isLocked}
+                      aria-label={`${member.name} share percentage`}
+                      onChange={(event) =>
+                        setPercentageDrafts((previous) => ({ ...previous, [member.id]: event.target.value }))
+                      }
+                      onBlur={() => commitPercentageInput(member.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') event.currentTarget.blur();
+                      }}
+                      className="w-24 bg-transparent text-center text-3xl font-black tracking-tight text-white outline-none border-b border-transparent focus:border-blue-400 disabled:opacity-40"
+                    />
+                    <span className="text-2xl font-bold text-slate-300">%</span>
                   </div>
                   <div className="flex items-center justify-center gap-1.5 mt-0.5">
                     <span className="text-[10px] font-mono text-slate-400">
@@ -771,6 +852,13 @@ export const AgreementStudio: React.FC<AgreementStudioProps> = ({
         proposedSplits={splits}
         onApplyCompromise={(newSplits) => {
           setSplits(newSplits);
+          setPercentageDrafts({
+            dev: formatPercentageInput(newSplits.dev),
+            artist: formatPercentageInput(newSplits.artist),
+            writer: formatPercentageInput(newSplits.writer),
+            composer: formatPercentageInput(newSplits.composer),
+          });
+          resetRatification();
         }}
       />
     </div>

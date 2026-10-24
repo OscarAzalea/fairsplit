@@ -2,8 +2,9 @@
 
 import React from 'react';
 import { X, ShieldCheck, Printer, CheckCircle, QrCode, FileText, Lock } from 'lucide-react';
-import { Epoch, Member, Inflow, PayoutBatch } from '@/lib/types';
+import { Epoch, Member, Inflow, PayoutBatch, ReserveReallocation } from '@/lib/types';
 import { centsToDollars, bpsToPercent } from '@/lib/fairsplit-math';
+import { calculateMemberBalances, calculateSettledPayouts } from '@/lib/balances';
 
 interface PayoutCertificateModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface PayoutCertificateModalProps {
   activeEpoch: Epoch;
   inflows: Inflow[];
   payoutBatches: PayoutBatch[];
+  reserveReallocations: ReserveReallocation[];
 }
 
 export const PayoutCertificateModal: React.FC<PayoutCertificateModalProps> = ({
@@ -21,6 +23,7 @@ export const PayoutCertificateModal: React.FC<PayoutCertificateModalProps> = ({
   activeEpoch,
   inflows,
   payoutBatches,
+  reserveReallocations,
 }) => {
   if (!isOpen || !member) return null;
 
@@ -40,16 +43,15 @@ export const PayoutCertificateModal: React.FC<PayoutCertificateModalProps> = ({
     }
   });
 
-  let totalPaidOutCents = 0;
-  payoutBatches.forEach((batch) => {
-    batch.items.forEach((item) => {
-      if (item.memberId === member.id && item.status === 'SUCCESS') {
-        totalPaidOutCents += item.amountCents;
-      }
-    });
-  });
+  const totalPaidOutCents = calculateSettledPayouts(payoutBatches)[member.id];
 
-  const pendingBalanceCents = totalAllocatedCents - totalPaidOutCents;
+  const pendingBalanceCents = calculateMemberBalances(
+    inflows,
+    payoutBatches,
+    reserveReallocations
+  )[member.id];
+  const effectiveAllocatedCents = pendingBalanceCents + totalPaidOutCents;
+  const reserveAdjustmentCents = effectiveAllocatedCents - totalAllocatedCents;
   const activeBps = activeEpoch.splits.find((s) => s.memberId === member.id)?.bps ?? 0;
   const certificateId = `FS-CERT-${member.id.toUpperCase()}-${activeEpoch.version.replace('.', '')}-${Date.now().toString().slice(-6)}`;
   const dateStr = new Date().toLocaleDateString('en-US', {
@@ -134,16 +136,28 @@ export const PayoutCertificateModal: React.FC<PayoutCertificateModalProps> = ({
 
             <div className="space-y-2 text-xs divide-y divide-slate-800/80 print:divide-gray-200">
               <div className="flex justify-between py-1 text-slate-300 print:text-gray-800">
-                <span>Proportional Gross Revenue:</span>
+                <span>Historical Proportional Gross Revenue:</span>
                 <span className="font-bold text-white print:text-black">{centsToDollars(totalGrossCents)}</span>
               </div>
               <div className="flex justify-between py-1 text-slate-400 print:text-gray-600">
-                <span>PayPal Processing Fee Share (2.99% + $0.49):</span>
+                <span>Historical PayPal Fee Share:</span>
                 <span className="text-red-400 font-medium print:text-red-600">-{centsToDollars(totalFeeCents)}</span>
               </div>
               <div className="flex justify-between py-1 text-slate-300 print:text-gray-800">
-                <span>Total Net Allocated to Date:</span>
+                <span>Original Inflow Allocations:</span>
                 <span className="font-bold text-emerald-400 print:text-emerald-700">{centsToDollars(totalAllocatedCents)}</span>
+              </div>
+              {reserveReallocations.length > 0 && (
+                <div className="flex justify-between py-1 text-slate-300 print:text-gray-800">
+                  <span>Reserve Reallocation Adjustment:</span>
+                  <span className="font-bold text-emerald-400 print:text-emerald-700">
+                    {reserveAdjustmentCents > 0 ? '+' : ''}{centsToDollars(reserveAdjustmentCents)}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between py-1 text-slate-300 print:text-gray-800">
+                <span>Effective Net Allocation:</span>
+                <span className="font-bold text-emerald-400 print:text-emerald-700">{centsToDollars(effectiveAllocatedCents)}</span>
               </div>
               <div className="flex justify-between py-1 text-slate-400 print:text-gray-600">
                 <span>Settled PayPal Batch Payouts:</span>
@@ -154,6 +168,11 @@ export const PayoutCertificateModal: React.FC<PayoutCertificateModalProps> = ({
                 <span className="text-emerald-400 print:text-emerald-700 text-base">{centsToDollars(pendingBalanceCents)}</span>
               </div>
             </div>
+            {reserveReallocations.length > 0 && (
+              <p className="pt-2 text-[10px] text-slate-500 print:text-gray-600">
+                Unclaimed reserves were reallocated under Epoch {reserveReallocations[reserveReallocations.length - 1].epochId.replace('epoch-', '')}. Historical inflow allocations and completed payouts remain unchanged.
+              </p>
+            )}
           </div>
 
           {/* Cryptographic Hash Verification Box */}

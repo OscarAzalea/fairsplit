@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { IntegrationStatusBar } from '@/components/IntegrationStatusBar';
 
 export const metadata: Metadata = {
   title: 'FairSplit | PayPal AI Hackathon 2026',
@@ -15,6 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark bg-slate-950 text-slate-100 antialiased">
       <body className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
+        <IntegrationStatusBar />
         {children}
       </body>
     </html>

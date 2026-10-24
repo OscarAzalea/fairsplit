@@ -20,7 +20,7 @@ import {
   Bot,
   X,
 } from 'lucide-react';
-import { Epoch, Inflow, Member, MemberRole, PayoutBatch, PayoutItem, PayoutStatus, PayoutRecommendation } from '@/lib/types';
+import { Epoch, Inflow, Member, MemberRole, PayoutBatch, PayoutItem, PayoutStatus, PayoutRecommendation, ReserveReallocation } from '@/lib/types';
 import {
   allocateCentsFairly,
   calculatePayPalFeeCents,
@@ -28,6 +28,7 @@ import {
   dollarsToCents,
   bpsToPercent,
 } from '@/lib/fairsplit-math';
+import { calculateMemberBalances } from '@/lib/balances';
 import { PayPalCheckoutModal } from './PayPalCheckoutModal';
 import { BatchPayoutReceiptModal } from './BatchPayoutReceiptModal';
 import { Printer } from 'lucide-react';
@@ -38,6 +39,7 @@ interface PaymentsHubProps {
   activeEpoch: Epoch;
   inflows: Inflow[];
   payoutBatches: PayoutBatch[];
+  reserveReallocations: ReserveReallocation[];
   onNewInflow: (inflow: Inflow) => void;
   onNewPayoutBatch: (batch: PayoutBatch) => void;
   payoutRecommendations?: PayoutRecommendation[];
@@ -51,6 +53,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
   activeEpoch,
   inflows,
   payoutBatches,
+  reserveReallocations,
   onNewInflow,
   onNewPayoutBatch,
   payoutRecommendations = [],
@@ -62,7 +65,6 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
   const [selectedPreset, setSelectedPreset] = useState<'steam' | 'bandcamp' | 'patreon' | 'custom'>('steam');
   const [inflowSource, setInflowSource] = useState<string>('Steam Early Access Launch Batch');
   const [inflowGrossDollars, setInflowGrossDollars] = useState<number>(2500.0);
-  const [isInflowProcessing, setIsInflowProcessing] = useState<boolean>(false);
   const [inflowSuccessOrderId, setInflowSuccessOrderId] = useState<string | null>(null);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState<boolean>(false);
 
@@ -76,20 +78,10 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
   const [lastExecutedBatch, setLastExecutedBatch] = useState<PayoutBatch | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
 
-  // Derive collaborator pending balances in cents
-  const memberBalances: Record<MemberRole, number> = { dev: 0, artist: 0, writer: 0, composer: 0 };
-  inflows.forEach((inflow) => {
-    inflow.allocations.forEach((alloc) => {
-      memberBalances[alloc.memberId] += alloc.cents;
-    });
-  });
-  payoutBatches.forEach((batch) => {
-    batch.items.forEach((item) => {
-      if (item.status === 'SUCCESS') {
-        memberBalances[item.memberId] -= item.amountCents;
-      }
-    });
-  });
+  // Payout preparation uses the same reserve ledger shown on Collaborator Balances.
+  const memberBalances = calculateMemberBalances(inflows, payoutBatches, reserveReallocations);
+  const hasActiveReserveReallocation =
+    reserveReallocations[reserveReallocations.length - 1]?.epochHash === activeEpoch.hash;
 
   // Handle Preset Inflow Selection
   const handleSelectPreset = (preset: 'steam' | 'bandcamp' | 'patreon' | 'custom') => {
@@ -113,64 +105,6 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
   const previewNetCents = Math.max(0, previewGrossCents - previewFeeCents);
   const previewAllocations = allocateCentsFairly(previewNetCents, activeEpoch.splits);
 
-  // Trigger PayPal Orders API Capture
-  const handleCaptureInflow = async () => {
-    if (previewGrossCents <= 0) return;
-    setIsInflowProcessing(true);
-    setInflowSuccessOrderId(null);
-
-    try {
-      // 1. Create PayPal Order
-      const createRes = await fetch('/api/paypal/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amountDollars: inflowGrossDollars,
-          description: inflowSource,
-        }),
-      });
-
-      if (!createRes.ok) throw new Error('Order creation failed');
-      const orderData = await createRes.json();
-      const orderId = orderData.id;
-
-      // 2. Capture PayPal Order
-      const captureRes = await fetch('/api/paypal/capture-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId,
-          amountDollars: inflowGrossDollars,
-        }),
-      });
-
-      if (!captureRes.ok) throw new Error('Order capture failed');
-
-      // 3. Append to Trust Ledger with active epoch stamp
-      const now = new Date().toISOString();
-      const newInflow: Inflow = {
-        id: `INF-${Math.floor(100 + Math.random() * 900)}`,
-        source: inflowSource,
-        grossCents: previewGrossCents,
-        feeCents: previewFeeCents,
-        netCents: previewNetCents,
-        currency: 'USD',
-        timestamp: now,
-        paypalOrderId: orderId,
-        epochId: activeEpoch.epochId,
-        epochHash: activeEpoch.hash,
-        allocations: previewAllocations,
-      };
-
-      onNewInflow(newInflow);
-      setInflowSuccessOrderId(orderId);
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'PayPal order processing failed');
-    } finally {
-      setIsInflowProcessing(false);
-    }
-  };
-
   // Toggle member in payout batch
   const toggleMemberPayoutSelection = (role: MemberRole) => {
     setSelectedMembersForPayout((prev) => {
@@ -192,7 +126,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
       amountCents: memberBalances[m.id],
       currency: 'USD',
       status: 'PENDING' as PayoutStatus,
-      note: `FairSplit settlement under active Epoch ${activeEpoch.version}`,
+      note: `FairSplit settlement under active Epoch ${activeEpoch.version}${hasActiveReserveReallocation ? ' (includes reserve reallocation)' : ''}`,
     }));
 
   const totalPayoutBatchCents = payoutItemsToExecute.reduce((sum, item) => sum + item.amountCents, 0);
@@ -268,15 +202,15 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
               Payments Engine
             </span>
             <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-800 text-slate-300 border border-slate-700">
-              PayPal Sandbox APIs
+              PayPal Sandbox + Demo Modes
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            Inflow Simulator & Batch Payouts Console
+            Checkout & Payout Demo
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
-            Simulate incoming sales captured through the PayPal Orders API, and execute idempotent
-            batch distributions to all collaborators via the PayPal Payouts API.
+            Approve real Sandbox checkouts when configured, or use the local simulator. Payout
+            batches are currently simulated.
           </p>
         </div>
 
@@ -343,7 +277,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
 
       {/* Two Column Grid: Inflows (Orders API) & Outflows (Payouts API) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* PANEL 1: INFLOWS (PayPal Orders API Simulator) */}
+        {/* PANEL 1: INFLOWS (PayPal Orders API / Simulator) */}
         <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
           <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -352,7 +286,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
               </div>
               <div>
                 <h2 className="text-base font-bold text-white">Inflows: PayPal Orders API</h2>
-                <p className="text-xs text-slate-400">Capture revenue & tie immutably to active epoch</p>
+                <p className="text-xs text-slate-400">Buyer approval, capture, and active epoch link</p>
               </div>
             </div>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
@@ -542,7 +476,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
         </div>
 
 
-        {/* PANEL 2: OUTFLOWS (PayPal Payouts API Batch Distribution) */}
+        {/* PANEL 2: OUTFLOWS (Simulated PayPal Payout Batch Distribution) */}
         <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
           <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -550,8 +484,8 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
                 <Send className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-white">Outflows: PayPal Payouts API</h2>
-                <p className="text-xs text-slate-400">Idempotent batch disbursement console</p>
+                <h2 className="text-base font-bold text-white">Outflows: Payout Batch Simulator</h2>
+                <p className="text-xs text-slate-400">Preview the Payouts API payload; no funds are sent</p>
               </div>
             </div>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
@@ -673,7 +607,7 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-sm cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>View Official Settlement Receipt (PDF)</span>
+                <span>View Demo Settlement Receipt (PDF)</span>
               </button>
             </div>
           )}
@@ -687,13 +621,13 @@ export const PaymentsHub: React.FC<PaymentsHubProps> = ({
             {isPayoutProcessing ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Executing PayPal Sandbox Batch Payout...</span>
+                <span>Simulating payout batch...</span>
               </>
             ) : (
               <>
                 <Send className="w-4 h-4" />
                 <span>
-                  Disburse Batch via PayPal Payouts ({centsToDollars(totalPayoutBatchCents)})
+                  Simulate payout batch ({centsToDollars(totalPayoutBatchCents)})
                 </span>
               </>
             )}

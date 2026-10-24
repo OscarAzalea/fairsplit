@@ -6,14 +6,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { orderId, amountDollars } = body;
 
-    if (!orderId || !amountDollars) {
+    if (typeof orderId !== 'string' || !orderId.trim()) {
       return NextResponse.json(
-        { error: 'Missing orderId or amountDollars' },
+        { error: 'A valid orderId is required.' },
         { status: 400 }
       );
     }
 
-    const captureResult = await captureSandboxOrder(orderId, Number(amountDollars));
+    // The server ignores this value for real PayPal captures. It is used only
+    // by the local simulator, which has no PayPal order record to query.
+    const simulatedAmount =
+      typeof amountDollars === 'number' ? amountDollars : Number(amountDollars);
+    const captureResult = await captureSandboxOrder(orderId, simulatedAmount);
 
     return NextResponse.json(captureResult);
   } catch (error: unknown) {

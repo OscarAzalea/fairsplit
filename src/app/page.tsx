@@ -9,9 +9,10 @@ import { PaymentsHub } from '@/components/PaymentsHub';
 import { StudioAdvisorDrawer } from '@/components/StudioAdvisorDrawer';
 import { GENESIS_EPOCH, INITIAL_INFLOWS, INITIAL_PAYOUT_BATCHES, MEMBERS } from '@/lib/initial-data';
 
-import { Epoch, Inflow, PayoutBatch, PayoutRecommendation, MemberRole } from '@/lib/types';
+import { Epoch, Inflow, PayoutBatch, PayoutRecommendation, MemberRole, ReserveReallocation } from '@/lib/types';
 import { verifyEpochChain } from '@/lib/crypto';
 import { dollarsToCents, calculatePayPalFeeCents, allocateCentsFairly } from '@/lib/fairsplit-math';
+import { calculateMemberBalances, MEMBER_ROLES } from '@/lib/balances';
 import { ShieldCheck, Sparkles, Layers, DollarSign, Wallet } from 'lucide-react';
 
 export default function FairSplitApp() {
@@ -19,6 +20,7 @@ export default function FairSplitApp() {
   const [activeEpoch, setActiveEpoch] = useState<Epoch>(GENESIS_EPOCH);
   const [inflows, setInflows] = useState<Inflow[]>(INITIAL_INFLOWS);
   const [payoutBatches, setPayoutBatches] = useState<PayoutBatch[]>(INITIAL_PAYOUT_BATCHES);
+  const [reserveReallocations, setReserveReallocations] = useState<ReserveReallocation[]>([]);
   const [activeTab, setActiveTab] = useState<'studio' | 'ledger' | 'balances' | 'payments'>('studio');
   const [isAdvisorOpen, setIsAdvisorOpen] = useState<boolean>(false);
 
@@ -114,16 +116,30 @@ export default function FairSplitApp() {
     setInflows((prev) => [newInflow, ...prev]);
   };
 
-  // Re-allocate unwithdrawn reserves according to active epoch splits
-  const handleReallocatePendingReserves = () => {
-    setInflows((prev) =>
-      prev.map((inf) => ({
-        ...inf,
-        epochId: activeEpoch.epochId,
-        epochHash: activeEpoch.hash,
-        allocations: allocateCentsFairly(inf.netCents, activeEpoch.splits),
-      }))
+  // Snapshot the unpaid pool under the active epoch without rewriting historical inflows or payouts.
+  const handleApplyActiveEpochToReserves = () => {
+    const previousPendingCents = calculateMemberBalances(inflows, payoutBatches, reserveReallocations);
+    const totalUnclaimedCents = MEMBER_ROLES.reduce(
+      (sum, role) => sum + previousPendingCents[role],
+      0
     );
+
+    if (totalUnclaimedCents <= 0) return;
+
+    const reallocation: ReserveReallocation = {
+      id: `RESERVE-${activeEpoch.epochId}-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      epochId: activeEpoch.epochId,
+      epochHash: activeEpoch.hash,
+      previousPendingCents,
+      allocations: allocateCentsFairly(totalUnclaimedCents, activeEpoch.splits),
+      includedInflowIds: inflows.map((inflow) => inflow.id),
+      includedPayoutItemIds: payoutBatches.flatMap((batch) =>
+        batch.items.filter((item) => item.status === 'SUCCESS').map((item) => item.senderItemId)
+      ),
+    };
+
+    setReserveReallocations((prev) => [...prev, reallocation]);
   };
 
   // Add new payout batch
@@ -246,10 +262,11 @@ export default function FairSplitApp() {
             activeEpoch={activeEpoch}
             inflows={inflows}
             payoutBatches={payoutBatches}
+            reserveReallocations={reserveReallocations}
+            onApplyActiveEpochToReserves={handleApplyActiveEpochToReserves}
             onNavigateToPayouts={() => setActiveTab('payments')}
             currentMember={currentMember}
             onSimulateQuickInflow={handleSimulateQuickInflow}
-            onReallocatePendingReserves={handleReallocatePendingReserves}
           />
         )}
 
@@ -259,6 +276,7 @@ export default function FairSplitApp() {
             activeEpoch={activeEpoch}
             inflows={inflows}
             payoutBatches={payoutBatches}
+            reserveReallocations={reserveReallocations}
             onNewInflow={handleNewInflow}
             onNewPayoutBatch={handleNewPayoutBatch}
             payoutRecommendations={payoutRecommendations}
